@@ -1,0 +1,6 @@
+*.o
+*.gresource.c
+gnome-battery-bench
+gnome-battery-bench-replay-helper
+powertest
+
