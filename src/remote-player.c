@@ -90,7 +90,8 @@ static void
 remote_player_maybe_start(GbbRemotePlayer *player)
 {
     if (gbb_event_player_is_ready(GBB_EVENT_PLAYER(player)) &&
-        player->player_proxy && player->pending_fd != -1) {
+        player->player_proxy && player->pending_fd != -1)
+    {
         GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&player->pending_fd, 1);
         player->pending_fd = -1;
 

@@ -124,7 +124,6 @@ next_event_timeout(void *data)
 
     if (!event) {
         gbb_event_player_stop(GBB_EVENT_PLAYER(player));
-        gbb_event_player_finished(GBB_EVENT_PLAYER(player));
         return FALSE;
     }
 
@@ -221,6 +220,8 @@ gbb_evdev_player_stop(GbbEventPlayer *event_player)
     GbbEvdevPlayer *player = GBB_EVDEV_PLAYER(event_player);
     GError *error = NULL;
 
+    g_clear_pointer(&player->next_event, event_free);
+
     if (player->next_event_timeout) {
         g_source_remove(player->next_event_timeout);
         player->next_event_timeout = 0;
@@ -230,6 +231,8 @@ gbb_evdev_player_stop(GbbEventPlayer *event_player)
         die("Error closing input: %s\n", error->message);
 
     g_clear_object(&player->input);
+
+    gbb_event_player_finished(GBB_EVENT_PLAYER(player));
 }
 
 static void

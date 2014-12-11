@@ -121,6 +121,7 @@ player_handle_method_call(GDBusConnection       *connection,
                                                    "Player stopped");
             return;
         }
+        gbb_event_player_stop(player->player);
         g_dbus_method_invocation_return_value(invocation, NULL);
     } else if (g_strcmp0 (method_name, "Destroy") == 0) {
         player_destroy(user_data);

@@ -141,7 +141,12 @@ on_start_button_clicked(GtkWidget      *button,
         g_free(application->filename);
         application->filename = NULL;
 
-        gbb_event_player_stop(application->player);
+        if (application->start_state) {
+            gbb_event_player_stop(application->player);
+            gbb_power_state_free(application->start_state);
+            application->start_state = NULL;
+        }
+
         gbb_system_state_restore(application->system_state);
 
         g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
