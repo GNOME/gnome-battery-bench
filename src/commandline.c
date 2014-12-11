@@ -26,7 +26,7 @@ void usage(void)
 void
 usage(void)
 {
-    die("Usage: powertest [--record|--playback|--remote-playback|--test]");
+    die("Usage: gbb [--record|--playback|--remote-playback|--test]");
 }
 
 void *xcalloc(size_t nmemb, size_t size)
