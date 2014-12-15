@@ -30,7 +30,9 @@ AC_SUBST(GLIB_COMPILE_RESOURCES)
 
 AC_CONFIG_FILES([
   Makefile
+  data/Makefile
   src/Makefile
+  tests/Makefile
 ])
 
 AC_OUTPUT

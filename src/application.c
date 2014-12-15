@@ -160,7 +160,9 @@ on_start_button_clicked(GtkWidget      *button,
         g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
 
         const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
-        application->filename = g_strconcat(test_id, ".batterytest", NULL);
+        char *testfile = g_strconcat(test_id, ".batterytest", NULL);
+        application->filename = g_build_filename(PKGDATADIR, "tests", testfile, NULL);
+        g_free(testfile);
     }
 
     update_label(application);
