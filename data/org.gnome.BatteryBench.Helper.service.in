@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.BatteryBench.Helper
+Exec=@LIBEXECDIR@/gnome-battery-bench-helper
+User=root

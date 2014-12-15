@@ -1,5 +1,5 @@
 bin_PROGRAMS=gnome-battery-bench gbb
-libexec_PROGRAMS=gnome-battery-bench-replay-helper
+libexec_PROGRAMS=gnome-battery-bench-helper
 
 base_sources =					\
 	power-monitor.c				\
@@ -22,7 +22,7 @@ x_sources =					\
 	xinput-wait.c				\
 	xinput-wait.h
 
-gnome_battery_bench_CPPFLAGS = $(APPLICATION_CFLAGS)
+gnome_battery_bench_CPPFLAGS = $(APPLICATION_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
 gnome_battery_bench_LDADD = $(APPLICATION_LIBS)
 
 gnome_battery_bench_SOURCES =			\
@@ -40,10 +40,10 @@ gbb_SOURCES =					\
 	$(x_sources)				\
 	commandline.c
 
-gnome_battery_bench_replay_helper_CPPFLAGS = $(HELPER_CFLAGS)
-gnome_battery_bench_replay_helper_LDADD = $(HELPER_LIBS)
+gnome_battery_bench_helper_CPPFLAGS = $(HELPER_CFLAGS)
+gnome_battery_bench_helper_LDADD = $(HELPER_LIBS)
 
-gnome_battery_bench_replay_helper_SOURCES =	\
+gnome_battery_bench_helper_SOURCES =		\
 	$(base_sources)				\
 	replay-helper.c
 

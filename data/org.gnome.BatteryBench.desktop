@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GNOME Battery Bench
+Comment=Test battery performance
+#Icon=FIXME
+Exec=gapplication launch org.gnome.BatteryBench
+DBusActivatable=true
+StartupNotify=true
+Categories=GNOME;GTK;Utility;Core;

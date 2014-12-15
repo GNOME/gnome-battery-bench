@@ -11,9 +11,10 @@ depcomp
 /config.h.in
 gbb
 gnome-battery-bench
-gnome-battery-bench-replay-helper
+gnome-battery-bench-helper
 install-sh
 Makefile
 Makefile.in
 missing
+org.gnome.BatteryBench.Helper.service
 stamp-h1
