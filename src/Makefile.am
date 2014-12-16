@@ -49,5 +49,7 @@ gnome_battery_bench_helper_SOURCES =		\
 
 OBJS = power-monitor.o system-state.o introspection.o
 
+gnome-battery-bench.gresource.c: gnome-battery-bench.xml
+
 %.gresource.c : %.gresource.xml
 	$(GLIB_COMPILE_RESOURCES) --generate --target $@ $<
