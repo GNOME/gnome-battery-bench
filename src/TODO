@@ -1,0 +1,17 @@
+update graphs on start
+graph isn't right for until-depletion
+show depletion line on percentage graph
+use individual labels in a better layout
+Handle charge
+
+
+     AC           online
+     Energy now   23.WH
+
+                  Design   Last Charge
+     Energy full   46.WH      45.WH
+     Percentage    53.2%      60%
+     Battery life  5:00h      4:30h
+
+                 Instant    Average
+     Power         8W       7W

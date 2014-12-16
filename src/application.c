@@ -23,17 +23,14 @@ struct _GbbApplication {
     GQueue *history;
     GbbPowerStatistics *statistics;
 
+    GtkBuilder *builder;
     GtkWidget *window;
     GtkWidget *test_combo;
     GtkWidget *duration_combo;
     GtkWidget *start_button;
-    GtkWidget *state_label;
     GtkWidget *power_area;
     GtkWidget *percentage_area;
     GtkWidget *life_area;
-    GtkWidget *power_max_label;
-    GtkWidget *life_max_label;
-    GtkWidget *time_max_label;
 
     gboolean started;
     char *filename;
@@ -63,54 +60,108 @@ gbb_application_finalize(GObject *object)
 }
 
 static void
-update_label(GbbApplication *application)
+set_label(GbbApplication *application,
+          const char     *label_name,
+          const char     *format,
+          ...) G_GNUC_PRINTF(3, 4);
+
+static void
+set_label(GbbApplication *application,
+          const char     *label_name,
+          const char     *format,
+          ...)
+{
+    va_list args;
+
+    va_start(args, format);
+    char *text = g_strdup_vprintf(format, args);
+    va_end(args);
+
+    GtkLabel *label = GTK_LABEL(gtk_builder_get_object(application->builder, label_name));
+    gtk_label_set_text(label, text);
+    g_free(text);
+}
+
+static void
+clear_label(GbbApplication *application,
+            const char     *label_name)
+{
+    GtkLabel *label = GTK_LABEL(gtk_builder_get_object(application->builder, label_name));
+    gtk_label_set_text(label, "");
+}
+
+static void
+update_labels(GbbApplication *application)
 {
     GString *text = g_string_new (NULL);
 
     GbbPowerState *state = gbb_power_monitor_get_state(application->monitor);
-    g_string_append_printf(text, "Online: %s\n", state->online ? "yes": "no");
-    if (state->energy_now >= 0) {
-        g_string_append_printf(text, "Energy: %g Wh", state->energy_now);
-        if (state->energy_full > 0) {
-            g_string_append_printf(text, " (%.1f%%)", 100. * state->energy_now / state->energy_full);
-        }
-        g_string_append(text, "\n");
-        if (state->energy_full >= 0)
-            g_string_append_printf(text, "Energy full: %.1f Wh\n", state->energy_full);
-        if (state->energy_full_design >= 0)
-            g_string_append_printf(text, "Energy full (design): %.1f Wh\n", state->energy_full_design);
+    set_label(application, "ac",
+              "%s", state->online ? "online" : "offline");
+
+    if (state->energy_now >= 0)
+        set_label(application, "energy-now", "%.1f", state->energy_now);
+    else
+        clear_label(application, "energy-now");
+
+    if (state->energy_full >= 0)
+        set_label(application, "energy-full", "%.1f", state->energy_full);
+    else
+        clear_label(application, "energy-full");
+
+    if (state->energy_now >= 0 && state->energy_full >= 0)
+        set_label(application, "percentage", "%.1f%%", 100. * state->energy_now / state->energy_full);
+    else
+        clear_label(application, "percentage");
+
+    if (state->energy_full_design >= 0)
+        set_label(application, "energy-full-design", "%.1f", state->energy_full_design);
+    else
+        clear_label(application, "energy-full-design");
+
+    if (state->energy_now >= 0 && state->energy_full >= 0)
+        set_label(application, "percentage", "%.1f%%", 100. * state->energy_now / state->energy_full);
+    else
+        clear_label(application, "percentage");
+
+    if (state->energy_now >= 0 && state->energy_full_design >= 0)
+        set_label(application, "percentage-design", "%.1f%%", 100. * state->energy_now / state->energy_full_design);
+    else
+        clear_label(application, "percentage-design");
+
+    GbbPowerStatistics *statistics = application->statistics;
+    if (statistics && statistics->power >= 0)
+        set_label(application, "power-average", "%.1fW", statistics->power);
+    else
+        clear_label(application, "power-average");
+
+    if (application->history && application->history->tail) {
+        GbbPowerState *state = application->history->tail->data;
+        GbbPowerState *last_state = application->history->tail->prev ? application->history->tail->prev->data : application->start_state;
+        GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
+                                                                                  last_state, state);
+        set_label(application, "power-instant", "%.1fW", interval_stats->power);
+        gbb_power_statistics_free(interval_stats);
+    } else if (statistics && statistics->power >= 0) {
+        set_label(application, "power-instant", "%.1fW", statistics->power);
+    } else {
+        clear_label(application, "power-instant");
     }
 
-    if (application->started || application->statistics) {
-        GbbPowerStatistics *statistics = application->statistics;
-
-        g_string_append(text, "-------\n");
-        if (statistics) {
-            if (statistics->power >= 0)
-                g_string_append_printf(text, "Power: %.2f W\n", statistics->power);
-            if (statistics->current >= 0)
-                g_string_append_printf(text, "Current: %.2f A\n", statistics->current);
-            if (statistics->battery_life >= 0) {
-                int h, m, s;
-                break_time(statistics->battery_life, &h, &m, &s);
-                g_string_append_printf(text, "Predicted battery life: %.0fs (%d:%02d:%02d)\n",
-                                       statistics->battery_life, h, m, s);
-            }
-            if (statistics->battery_life_design >= 0) {
-                int h, m, s;
-                break_time(statistics->battery_life_design, &h, &m, &s);
-                g_string_append_printf(text, "Predicted battery life (design): %.0fs (%d:%02d:%02d)\n",
-                                       statistics->battery_life_design, h, m, s);
-            }
-        } else if (state->online) {
-            g_string_append(text, "Disconnect from AC to begin\n");
-        } else {
-            g_string_append(text, "Waiting for data...\n");
-        }
+    if (statistics && statistics->battery_life >= 0) {
+        int h, m, s;
+        break_time(statistics->battery_life, &h, &m, &s);
+        set_label(application, "estimated-life", "%d:%02d:%02d", h, m, s);
+    } else {
+        clear_label(application, "estimated-life");
     }
-
-    gtk_label_set_text(GTK_LABEL(application->state_label), text->str);
-    g_string_free(text, TRUE);
+    if (statistics && statistics->battery_life_design >= 0) {
+        int h, m, s;
+        break_time(statistics->battery_life_design, &h, &m, &s);
+        set_label(application, "estimated-life-design", "%d:%02d:%02d", h, m, s);
+    } else {
+        clear_label(application, "estimated-life-design");
+    }
 
     gbb_power_state_free(state);
 }
@@ -183,11 +234,7 @@ add_to_history(GbbApplication *application,
     else
         application->graph_max_power = 100;
 
-    char *text;
-
-    text = g_strdup_printf("%.0fW", application->graph_max_power);
-    gtk_label_set_text(GTK_LABEL(application->power_max_label), text);
-    g_free(text);
+    set_label(application, "power-max", "%.0fW", application->graph_max_power);
 
     GbbPowerStatistics *overall_stats = gbb_power_monitor_compute_statistics(application->monitor,
                                                                              application->start_state, state);
@@ -195,11 +242,9 @@ add_to_history(GbbApplication *application,
     application->graph_max_life = round_up_time(application->max_life);
 
     if (application->graph_max_life >= 60 * 60)
-        text = g_strdup_printf("%.0fh", application->graph_max_life / (60 * 60));
+        set_label(application, "life-max", "%.0fh", application->graph_max_life / (60 * 60));
     else
-        text = g_strdup_printf("%.0fm", application->graph_max_life / (60));
-    gtk_label_set_text(GTK_LABEL(application->life_max_label), text);
-    g_free(text);
+        set_label(application, "life-max", "%.0fm", application->graph_max_life / (60));
 
     switch (application->duration_type) {
     case DURATION_TIME:
@@ -211,11 +256,9 @@ add_to_history(GbbApplication *application,
     }
 
     if (application->graph_max_time >= 60 * 60)
-        text = g_strdup_printf("%.0f:00", application->graph_max_time / (60 * 60));
+        set_label(application, "time-max", "%.0f:00", application->graph_max_time / (60 * 60));
     else
-        text = g_strdup_printf("0:%02.0f", application->graph_max_time / (60));
-    gtk_label_set_text(GTK_LABEL(application->time_max_label), text);
-    g_free(text);
+        set_label(application, "time-max", "0:%02.0f", application->graph_max_time / (60));
 
     gbb_power_statistics_free(interval_stats);
     gbb_power_statistics_free(overall_stats);
@@ -248,7 +291,7 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
         }
     }
 
-    update_label(application);
+    update_labels(application);
 }
 
 static void
@@ -256,7 +299,7 @@ on_player_ready(GbbEventPlayer *player,
                 GbbApplication *application)
 {
     gtk_widget_set_sensitive(application->start_button, TRUE);
-    update_label(application);
+    update_labels(application);
 }
 
 static void
@@ -277,12 +320,6 @@ on_start_button_clicked(GtkWidget      *button,
         g_free(application->filename);
         application->filename = NULL;
 
-        if (application->start_state) {
-            gbb_event_player_stop(application->player);
-            gbb_power_state_free(application->start_state);
-            application->start_state = NULL;
-        }
-
         gbb_system_state_restore(application->system_state);
 
         g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
@@ -292,6 +329,12 @@ on_start_button_clicked(GtkWidget      *button,
         if (application->history) {
             g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
             application->history = NULL;
+        }
+
+        if (application->start_state) {
+            gbb_event_player_stop(application->player);
+            gbb_power_state_free(application->start_state);
+            application->start_state = NULL;
         }
 
         application->history = g_queue_new();
@@ -327,7 +370,7 @@ on_start_button_clicked(GtkWidget      *button,
         }
     }
 
-    update_label(application);
+    update_labels(application);
 }
 
 static void
@@ -463,20 +506,21 @@ gbb_application_activate (GApplication *app)
         return;
     }
 
-    GtkBuilder *builder = gtk_builder_new();
+    application->builder = gtk_builder_new();
     GError *error = NULL;
-    gtk_builder_add_from_resource(builder, "/org/gnome/battery-bench/gnome-battery-bench.xml",
+    gtk_builder_add_from_resource(application->builder,
+                                  "/org/gnome/battery-bench/gnome-battery-bench.xml",
                                   &error);
     if (error)
         die("Cannot load user interface: %s\n", error->message);
 
-    application->window = GTK_WIDGET(gtk_builder_get_object(builder, "window"));
+    application->window = GTK_WIDGET(gtk_builder_get_object(application->builder, "window"));
     gtk_application_add_window(GTK_APPLICATION(app), GTK_WINDOW(application->window));
 
-    application->test_combo = GTK_WIDGET(gtk_builder_get_object(builder, "test-combo"));
-    application->duration_combo = GTK_WIDGET(gtk_builder_get_object(builder, "duration-combo"));
+    application->test_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "test-combo"));
+    application->duration_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "duration-combo"));
 
-    application->start_button = GTK_WIDGET(gtk_builder_get_object(builder, "start-button"));
+    application->start_button = GTK_WIDGET(gtk_builder_get_object(application->builder, "start-button"));
 
     gtk_widget_set_sensitive(application->start_button,
                              gbb_event_player_is_ready(application->player));
@@ -484,25 +528,20 @@ gbb_application_activate (GApplication *app)
     g_signal_connect(application->start_button, "clicked",
                      G_CALLBACK(on_start_button_clicked), application);
 
-    application->state_label = GTK_WIDGET(gtk_builder_get_object(builder, "state-label"));
-    application->power_area = GTK_WIDGET(gtk_builder_get_object(builder, "power-area"));
+    application->power_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "power-area"));
     g_signal_connect(application->power_area, "draw",
                      G_CALLBACK(on_chart_area_draw),
                      application);
-    application->percentage_area = GTK_WIDGET(gtk_builder_get_object(builder, "percentage-area"));
+    application->percentage_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "percentage-area"));
     g_signal_connect(application->percentage_area, "draw",
                      G_CALLBACK(on_chart_area_draw),
                      application);
-    application->life_area = GTK_WIDGET(gtk_builder_get_object(builder, "life-area"));
+    application->life_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "life-area"));
     g_signal_connect(application->life_area, "draw",
                      G_CALLBACK(on_chart_area_draw),
                      application);
 
-    application->power_max_label = GTK_WIDGET(gtk_builder_get_object(builder, "power-max"));
-    application->life_max_label = GTK_WIDGET(gtk_builder_get_object(builder, "life-max"));
-    application->time_max_label = GTK_WIDGET(gtk_builder_get_object(builder, "time-max"));
-
-    update_label(application);
+    update_labels(application);
 
     g_signal_connect(application->monitor, "changed",
                      G_CALLBACK(on_power_monitor_changed),
