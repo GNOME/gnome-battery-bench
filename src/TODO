@@ -1,6 +1,9 @@
-update graphs on start
+Consider switching to upower
+Polkit the service
+
+Stop and reset brightness on exit
+Add shortcut for stop
 graph isn't right for until-depletion
-show depletion line on percentage graph
 Handle current instead of energy
 
 Read tests from directory
@@ -8,7 +11,6 @@ Add idle test
 Add test prologue/epilogue
 Log test runs
 Show logs in UI
-
 
   Standard - 10 minutes
   Tuesday, December 5th

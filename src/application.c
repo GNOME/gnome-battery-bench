@@ -203,6 +203,14 @@ round_up_time(double seconds)
 }
 
 static void
+redraw_graphs(GbbApplication *application)
+{
+    gtk_widget_queue_draw(application->power_area);
+    gtk_widget_queue_draw(application->percentage_area);
+    gtk_widget_queue_draw(application->life_area);
+}
+
+static void
 add_to_history(GbbApplication *application,
                GbbPowerState  *state)
 {
@@ -220,7 +228,7 @@ add_to_history(GbbApplication *application,
             double last_percent = gbb_power_state_get_percent(last_state);
             double current_percent = gbb_power_state_get_percent(state);
 
-            if ((current_percent - last_percent) / (start_percent - application->duration.percent) > 0.005)
+            if ((last_percent - current_percent) / (start_percent - application->duration.percent) > 0.005)
                 use_this_state = TRUE;
             break;
         }
@@ -280,9 +288,7 @@ add_to_history(GbbApplication *application,
     gbb_power_statistics_free(interval_stats);
     gbb_power_statistics_free(overall_stats);
 
-    gtk_widget_queue_draw(application->power_area);
-    gtk_widget_queue_draw(application->percentage_area);
-    gtk_widget_queue_draw(application->life_area);
+    redraw_graphs(application);
 }
 
 static void
@@ -379,7 +385,7 @@ on_start_button_clicked(GtkWidget      *button,
         } else if (strcmp(duration_id, "minutes-30") == 0) {
             application->duration_type = DURATION_TIME;
             application->duration.seconds = 30 * 60;
-        } else if (strcmp(duration_id, "percent-5") == 0) {
+        } else if (strcmp(duration_id, "until-percent-5") == 0) {
             application->duration_type = DURATION_PERCENT;
             application->duration.percent = 5;
         }
@@ -395,6 +401,7 @@ on_start_button_clicked(GtkWidget      *button,
     }
 
     update_labels(application);
+    redraw_graphs(application);
 }
 
 static void
@@ -480,6 +487,14 @@ on_chart_area_draw (GtkWidget      *chart_area,
 
     cairo_set_source_rgb(cr, 0.8, 0.8, 0.8);
     cairo_stroke(cr);
+
+    if (chart_area == application->percentage_area && application->duration_type == DURATION_PERCENT) {
+        double y = (1 - application->duration.percent / 100.) * allocation.height;
+        cairo_move_to(cr, 1.0, y);
+        cairo_line_to(cr, allocation.width - 1.0, y);
+        cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+        cairo_stroke(cr);
+    }
 
     if (!application->history || !application->history->head)
         return;
