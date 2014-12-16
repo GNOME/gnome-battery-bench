@@ -54,6 +54,20 @@ gbb_power_state_free(GbbPowerState   *state)
 {
     g_slice_free(GbbPowerState, state);
 }
+
+double
+gbb_power_state_get_percent (GbbPowerState *state)
+{
+    if (state->energy_full >= 0)
+        return 100 * state->energy_now / state->energy_full;
+    else if (state->charge_full >= 0)
+        return 100 * state->charge_now / state->charge_full;
+    else if (state->capacity_now >= 0)
+        return 100 * state->capacity_now;
+    else
+        return -1;
+}
+
 gboolean
 gbb_power_state_equal(GbbPowerState *a,
                       GbbPowerState *b)
