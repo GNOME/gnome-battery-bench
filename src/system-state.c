@@ -216,10 +216,10 @@ gbb_system_state_save (GbbSystemState *system_state)
     g_variant_unref(variant);
 }
 
-static void
-set_brightnesses (GbbSystemState *system_state,
-                  int             screen_brightness,
-                  int             keyboard_brightness)
+void
+gbb_system_state_set_brightnesses (GbbSystemState *system_state,
+                                   int             screen_brightness,
+                                   int             keyboard_brightness)
 {
     set_int32_property(system_state->screen_proxy,
                        g_dbus_proxy_get_interface_name(system_state->screen_proxy),
@@ -230,15 +230,9 @@ set_brightnesses (GbbSystemState *system_state,
 }
 
 void
-gbb_system_state_set_default (GbbSystemState *system_state)
-{
-    set_brightnesses(system_state, 50, 0);
-}
-
-void
 gbb_system_state_restore (GbbSystemState *system_state)
 {
-    set_brightnesses(system_state,
-                     system_state->saved_screen_brightness,
-                     system_state->saved_keyboard_brightness);
+    gbb_system_state_set_brightnesses(system_state,
+                                      system_state->saved_screen_brightness,
+                                      system_state->saved_keyboard_brightness);
 }

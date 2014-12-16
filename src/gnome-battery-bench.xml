@@ -96,10 +96,10 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkComboBoxText" id="duration-combo1">
+                  <object class="GtkComboBoxText" id="backlight-combo">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="active_id">5</property>
+                    <property name="active_id">50</property>
                     <items>
                       <item id="5" translatable="yes">5%</item>
                       <item id="50" translatable="yes">50%</item>
@@ -677,7 +677,7 @@
       </object>
     </child>
     <child type="titlebar">
-      <object class="GtkHeaderBar" id="headerbar1">
+      <object class="GtkHeaderBar" id="headerbar">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <property name="show_close_button">True</property>

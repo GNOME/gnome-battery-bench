@@ -1,17 +1,16 @@
 update graphs on start
 graph isn't right for until-depletion
 show depletion line on percentage graph
-use individual labels in a better layout
-Handle charge
+Handle current instead of energy
+
+Read tests from directory
+Add idle test
+Add test prologue/epilogue
+Log test runs
+Show logs in UI
 
 
-     AC           online
-     Energy now   23.WH
+  Standard - 10 minutes
+  Tuesday, December 5th
+  Power: 5WH    Estimated battery life: 5:32    Estimated battery life design: 7:31
 
-                  Design   Last Charge
-     Energy full   46.WH      45.WH
-     Percentage    53.2%      60%
-     Battery life  5:00h      4:30h
-
-                 Instant    Average
-     Power         8W       7W

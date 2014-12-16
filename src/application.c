@@ -25,8 +25,10 @@ struct _GbbApplication {
 
     GtkBuilder *builder;
     GtkWidget *window;
+    GtkWidget *headerbar;
     GtkWidget *test_combo;
     GtkWidget *duration_combo;
+    GtkWidget *backlight_combo;
     GtkWidget *start_button;
     GtkWidget *power_area;
     GtkWidget *percentage_area;
@@ -40,6 +42,8 @@ struct _GbbApplication {
         double seconds;
         double percent;
     } duration;
+
+    int backlight_level;
 
     double max_power;
     double graph_max_power;
@@ -99,13 +103,31 @@ update_labels(GbbApplication *application)
     set_label(application, "ac",
               "%s", state->online ? "online" : "offline");
 
+    char *title;
+    if (!application->started) {
+        title = g_strdup("GNOME Battery Bench");
+    } else if (application->started && !application->statistics) {
+        if (state->online)
+            title = g_strdup("GNOME Battery Bench - disconnect from AC to start");
+        else
+            title = g_strdup("GNOME Battery Bench - waiting for data");
+    } else {
+        int h, m, s;
+        break_time((state->time_us - application->start_state->time_us) / 1000000, &h, &m, &s);
+        title = g_strdup_printf("GNOME Battery Bench - running (%d:%02d:%02d)", h, m, s);
+    }
+
+    gtk_header_bar_set_title(GTK_HEADER_BAR(application->headerbar), title);
+    g_free(title);
+
+
     if (state->energy_now >= 0)
-        set_label(application, "energy-now", "%.1f", state->energy_now);
+        set_label(application, "energy-now", "%.1fWH", state->energy_now);
     else
         clear_label(application, "energy-now");
 
     if (state->energy_full >= 0)
-        set_label(application, "energy-full", "%.1f", state->energy_full);
+        set_label(application, "energy-full", "%.1fWH", state->energy_full);
     else
         clear_label(application, "energy-full");
 
@@ -115,14 +137,9 @@ update_labels(GbbApplication *application)
         clear_label(application, "percentage");
 
     if (state->energy_full_design >= 0)
-        set_label(application, "energy-full-design", "%.1f", state->energy_full_design);
+        set_label(application, "energy-full-design", "%.1fWH", state->energy_full_design);
     else
         clear_label(application, "energy-full-design");
-
-    if (state->energy_now >= 0 && state->energy_full >= 0)
-        set_label(application, "percentage", "%.1f%%", 100. * state->energy_now / state->energy_full);
-    else
-        clear_label(application, "percentage");
 
     if (state->energy_now >= 0 && state->energy_full_design >= 0)
         set_label(application, "percentage-design", "%.1f%%", 100. * state->energy_now / state->energy_full_design);
@@ -325,6 +342,7 @@ on_start_button_clicked(GtkWidget      *button,
         g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
         gtk_widget_set_sensitive(application->test_combo, TRUE);
         gtk_widget_set_sensitive(application->duration_combo, TRUE);
+        gtk_widget_set_sensitive(application->backlight_combo, TRUE);
     } else {
         if (application->history) {
             g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
@@ -341,12 +359,9 @@ on_start_button_clicked(GtkWidget      *button,
         application->max_power = 0;
         application->max_life = 0;
 
-        gbb_system_state_save(application->system_state);
-        gbb_system_state_set_default(application->system_state);
-        application->started = TRUE;
-
         gtk_widget_set_sensitive(application->test_combo, FALSE);
         gtk_widget_set_sensitive(application->duration_combo, FALSE);
+        gtk_widget_set_sensitive(application->backlight_combo, FALSE);
         g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
 
         const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
@@ -368,6 +383,15 @@ on_start_button_clicked(GtkWidget      *button,
             application->duration_type = DURATION_PERCENT;
             application->duration.percent = 5;
         }
+
+        const char *backlight_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->backlight_combo));
+        application->backlight_level = atoi(backlight_id);
+        gbb_system_state_save(application->system_state);
+        gbb_system_state_set_brightnesses(application->system_state,
+                                          application->backlight_level,
+                                          0);
+        application->started = TRUE;
+
     }
 
     update_labels(application);
@@ -517,8 +541,11 @@ gbb_application_activate (GApplication *app)
     application->window = GTK_WIDGET(gtk_builder_get_object(application->builder, "window"));
     gtk_application_add_window(GTK_APPLICATION(app), GTK_WINDOW(application->window));
 
+    application->headerbar = GTK_WIDGET(gtk_builder_get_object(application->builder, "headerbar"));
+
     application->test_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "test-combo"));
     application->duration_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "duration-combo"));
+    application->backlight_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "backlight-combo"));
 
     application->start_button = GTK_WIDGET(gtk_builder_get_object(application->builder, "start-button"));
 

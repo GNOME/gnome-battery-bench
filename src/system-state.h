@@ -17,8 +17,11 @@ GbbSystemState *gbb_system_state_new(void);
 gboolean gbb_system_state_is_ready (GbbSystemState *system_state);
 
 void gbb_system_state_save        (GbbSystemState *system_state);
-void gbb_system_state_set_default (GbbSystemState *system_state);
 void gbb_system_state_restore     (GbbSystemState *system_state);
+
+void gbb_system_state_set_brightnesses (GbbSystemState *system_state,
+                                        int             screen_brightness,
+                                        int             keyboard_brightness);
 
 GType gbb_system_state_get_type(void);
 
