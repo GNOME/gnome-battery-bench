@@ -1,6 +1,6 @@
-Add shortcut for stop
 Handle current instead of energy
 Actually handle hitting stop criteria
+Remember in GSettings the users selections for the test
 Log test runs
 Show logs in UI
 

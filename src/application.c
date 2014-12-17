@@ -2,6 +2,9 @@
 
 #include <gtk/gtk.h>
 
+#include <gdk/gdkx.h>
+#include <X11/keysymdef.h>
+
 #include "application.h"
 #include "battery-test.h"
 #include "remote-player.h"
@@ -390,11 +393,120 @@ on_player_ready(GbbEventPlayer *player,
     update_labels(application);
 }
 
+static GdkFilterReturn
+on_root_event (GdkXEvent *xevent,
+               GdkEvent  *event,
+               gpointer   data)
+{
+    GbbApplication *application = data;
+    XEvent *xev = (XEvent *)xevent;
+    if (xev->xany.type == KeyPress) {
+        application_stop(application);
+        return GDK_FILTER_REMOVE;
+    } else {
+        return GDK_FILTER_CONTINUE;
+    }
+}
+
+/* As always, when we XGrabKey, we need to grab with different combinations
+ * of ignored modifiers like CapsLock, NumLock; this function figures that
+ * out.
+ */
+static GList *
+get_grab_modifiers(GbbApplication *application)
+{
+    GdkScreen *screen = gtk_widget_get_screen(application->window);
+    Display *xdisplay = gdk_x11_display_get_xdisplay(gdk_screen_get_display(screen));
+    gboolean used[8] = { FALSE };
+    gint super = -1;
+
+    /* Figure out what modifiers are used, and what modifier is Super */
+    XModifierKeymap *modmap =  XGetModifierMapping(xdisplay);
+    int i, j;
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < modmap->max_keypermod; j++) {
+            if (modmap->modifiermap[i * modmap->max_keypermod + j]) {
+                used[i] = TRUE;
+            }
+            if (modmap->modifiermap[i * modmap->max_keypermod + j] == XKeysymToKeycode(xdisplay, XK_Super_L))
+                super = i;
+        }
+    }
+    XFree(modmap);
+
+    /* We want to effectively grab only if Shift/Control/Mod1/Super
+     * are in the same state we expect.
+     */
+    guint32 to_ignore = ShiftMask | ControlMask | Mod1Mask;
+    if (super >= 0)
+        to_ignore |= (1 << super);
+
+    for (i = 0; i < 8; i++) {
+        if (!used[i])
+            to_ignore |= 1 << i;
+    }
+
+    /* quick-and-dirty way to find out all the combinations of other
+     * modifiers; since the total number of modifier combinations is
+     * small, works fine */
+    GList *result = NULL;
+    guint32 mask = 0;
+    for (mask = 0; mask < 255; mask++) {
+        if ((mask & to_ignore) == 0)
+            result = g_list_prepend(result, GUINT_TO_POINTER(mask));
+    }
+
+    return result;
+}
+
+static void
+setup_stop_shortcut(GbbApplication *application)
+{
+    GdkScreen *screen = gtk_widget_get_screen(application->window);
+    GdkWindow *root = gdk_screen_get_root_window(screen);
+    Window xroot = gdk_x11_window_get_xid(root);
+    Display *xdisplay = gdk_x11_display_get_xdisplay(gdk_screen_get_display(screen));
+
+    GList *modifiers = get_grab_modifiers(application);
+    GList *l;
+    for (l = modifiers; l; l = l->next)
+        XGrabKey(xdisplay,
+                 XKeysymToKeycode(xdisplay, 'q'),
+                 ControlMask | Mod1Mask | GPOINTER_TO_UINT(l->data),
+                 xroot, False /* owner_events */,
+                 GrabModeAsync /* pointer_mode */, GrabModeAsync /* keyboard_mode */);
+    g_list_free(modifiers);
+
+    gdk_window_add_filter(root, on_root_event, application);
+}
+
+static void
+remove_stop_shortcut(GbbApplication *application)
+{
+    GdkScreen *screen = gtk_widget_get_screen(application->window);
+    GdkWindow *root = gdk_screen_get_root_window(screen);
+    Window xroot = gdk_x11_window_get_xid(root);
+    Display *xdisplay = gdk_x11_display_get_xdisplay(gdk_screen_get_display(screen));
+
+    GList *modifiers = get_grab_modifiers(application);
+    GList *l;
+    for (l = modifiers; l; l = l->next)
+        XUngrabKey(xdisplay,
+                   XKeysymToKeycode(xdisplay, 'q'),
+                   ControlMask | Mod1Mask | GPOINTER_TO_UINT(l->data),
+                   xroot);
+    g_list_free(modifiers);
+
+    gdk_window_remove_filter(root, on_root_event, application);
+}
+
 static void
 application_set_stopped(GbbApplication *application)
 {
     application_set_state(application, STATE_STOPPED);
     application->test = NULL;
+
+    remove_stop_shortcut(application);
 
     gbb_system_state_restore(application->system_state);
 
@@ -478,6 +590,8 @@ application_start(GbbApplication *application)
     gbb_system_state_set_brightnesses(application->system_state,
                                       application->backlight_level,
                                       0);
+
+    setup_stop_shortcut(application);
 
     if (application->test->prologue_file) {
         gbb_event_player_play_file(application->player, application->test->prologue_file);
