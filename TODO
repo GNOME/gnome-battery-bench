@@ -1,6 +1,3 @@
-Consider switching to upower
-
-Stop and reset brightness on exit
 Add shortcut for stop
 Handle current instead of energy
 Actually handle hitting stop criteria
@@ -11,3 +8,4 @@ Show logs in UI
   Tuesday, December 5th
   Power: 5WH    Estimated battery life: 5:32    Estimated battery life design: 7:31
 
+Consider switching to upower

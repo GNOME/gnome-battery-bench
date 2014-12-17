@@ -45,6 +45,8 @@ struct _GbbApplication {
     GtkWidget *life_area;
 
     State state;
+    gboolean stop_requested;
+    gboolean exit_requested;
     BatteryTest *test;
 
     DurationType duration_type;
@@ -65,6 +67,8 @@ struct _GbbApplication {
 struct _GbbApplicationClass {
     GtkApplicationClass parent_class;
 };
+
+static void application_stop(GbbApplication *application);
 
 G_DEFINE_TYPE(GbbApplication, gbb_application, GTK_TYPE_APPLICATION)
 
@@ -327,13 +331,13 @@ update_sensitive(GbbApplication *application)
         break;
     case STATE_PROLOGUE:
     case STATE_WAITING:
+    case STATE_RUNNING:
+        start_sensitive = !application->stop_requested;
+        controls_sensitive = FALSE;
+        break;
     case STATE_STOPPING:
     case STATE_EPILOGUE:
         start_sensitive = FALSE;
-        controls_sensitive = FALSE;
-        break;
-    case STATE_RUNNING:
-        start_sensitive = TRUE;
         controls_sensitive = FALSE;
         break;
     }
@@ -345,6 +349,16 @@ update_sensitive(GbbApplication *application)
 }
 
 static void
+application_set_state(GbbApplication *application,
+                      State           state)
+{
+    application->state = state;
+    update_sensitive(application);
+    update_labels(application);
+    redraw_graphs(application);
+}
+
+static void
 on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbApplication  *application)
 {
@@ -352,9 +366,8 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
         GbbPowerState *state = gbb_power_monitor_get_state(monitor);
         if (!state->online) {
             application->start_state = state;
-            application->state = STATE_RUNNING;
+            application_set_state(application, STATE_RUNNING);
             gbb_event_player_play_file(application->player, application->test->loop_file);
-            update_sensitive(application);
         } else {
             gbb_power_state_free(state);
         }
@@ -365,9 +378,8 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
         GbbPowerState *state = gbb_power_monitor_get_state(monitor);
         application->statistics = gbb_power_monitor_compute_statistics(monitor, application->start_state, state);
         add_to_history(application, state);
+        update_labels(application);
     }
-
-    update_labels(application);
 }
 
 static void
@@ -379,95 +391,129 @@ on_player_ready(GbbEventPlayer *player,
 }
 
 static void
+application_set_stopped(GbbApplication *application)
+{
+    application_set_state(application, STATE_STOPPED);
+    application->test = NULL;
+
+    gbb_system_state_restore(application->system_state);
+
+    g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
+
+    if (application->exit_requested)
+        gtk_widget_destroy(application->window);
+}
+
+static void
+application_set_epilogue(GbbApplication *application)
+{
+    if (application->test->epilogue_file) {
+        gbb_event_player_play_file(application->player, application->test->epilogue_file);
+        application_set_state(application, STATE_EPILOGUE);
+    } else {
+        application_set_stopped(application);
+    }
+}
+
+static void
 on_player_finished(GbbEventPlayer *player,
                    GbbApplication *application)
 {
     if (application->state == STATE_PROLOGUE) {
-        application->state = STATE_WAITING;
+        application_set_state(application, STATE_WAITING);
+
+        if (application->stop_requested) {
+            application->stop_requested = FALSE;
+            application_stop(application);
+        }
     } else if (application->state == STATE_RUNNING) {
         gbb_event_player_play_file(player, application->test->loop_file);
     } else if (application->state == STATE_STOPPING) {
-        if (application->test->epilogue_file) {
-            gbb_event_player_play_file(application->player, application->test->epilogue_file);
-            application->state = STATE_EPILOGUE;
-        } else {
-            application->state = STATE_STOPPED;
-            application->test = NULL;
-        }
+        application_set_epilogue(application);
     } else if (application->state == STATE_EPILOGUE) {
-        application->state = STATE_STOPPED;
-        application->test = NULL;
+        application_set_stopped(application);
+    }
+}
+
+static void
+application_start(GbbApplication *application)
+{
+    if (application->state != STATE_STOPPED)
+        return;
+
+    if (application->history) {
+        g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
+        application->history = NULL;
     }
 
-    update_labels(application);
-    update_sensitive(application);
+    g_clear_pointer(&application->start_state, (GFreeFunc)gbb_power_state_free);
+    g_clear_pointer(&application->statistics, (GFreeFunc)gbb_power_statistics_free);
+
+    application->history = g_queue_new();
+    application->max_power = 0;
+    application->max_life = 0;
+    g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
+
+    const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
+    application->test = battery_test_get_for_id(test_id);
+
+    const char *duration_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->duration_combo));
+    if (strcmp(duration_id, "minutes-5") == 0) {
+        application->duration_type = DURATION_TIME;
+        application->duration.seconds = 5 * 60;
+    } else if (strcmp(duration_id, "minutes-10") == 0) {
+        application->duration_type = DURATION_TIME;
+        application->duration.seconds = 10 * 60;
+    } else if (strcmp(duration_id, "minutes-30") == 0) {
+        application->duration_type = DURATION_TIME;
+        application->duration.seconds = 30 * 60;
+    } else if (strcmp(duration_id, "until-percent-5") == 0) {
+        application->duration_type = DURATION_PERCENT;
+        application->duration.percent = 5;
+    }
+
+    const char *backlight_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->backlight_combo));
+    application->backlight_level = atoi(backlight_id);
+    gbb_system_state_save(application->system_state);
+    gbb_system_state_set_brightnesses(application->system_state,
+                                      application->backlight_level,
+                                      0);
+
+    if (application->test->prologue_file) {
+        gbb_event_player_play_file(application->player, application->test->prologue_file);
+        application_set_state(application, STATE_PROLOGUE);
+    } else {
+        application_set_state(application, STATE_WAITING);
+    }
+}
+
+static void
+application_stop(GbbApplication *application)
+{
+    if ((application->state == STATE_WAITING || application->state == STATE_RUNNING)) {
+        if (application->state == STATE_RUNNING) {
+            gbb_event_player_stop(application->player);
+            application_set_state(application, STATE_STOPPING);
+        } else {
+            application_set_epilogue(application);
+        }
+    } else if (application->state == STATE_PROLOGUE) {
+        application->stop_requested = TRUE;
+        update_sensitive(application);
+    }
 }
 
 static void
 on_start_button_clicked(GtkWidget      *button,
                         GbbApplication *application)
 {
-    if (application->state == STATE_WAITING || application->state == STATE_RUNNING) {
-        gbb_system_state_restore(application->system_state);
-
-        g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
-
-        if (application->state == STATE_RUNNING) {
-            gbb_event_player_stop(application->player);
-        }
-
-        application->state = STATE_STOPPING;
-
-    } else if (application->state == STATE_STOPPED) {
-        if (application->history) {
-            g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
-            application->history = NULL;
-        }
-
-        g_clear_pointer(&application->start_state, (GFreeFunc)gbb_power_state_free);
-        g_clear_pointer(&application->statistics, (GFreeFunc)gbb_power_statistics_free);
-
-        application->history = g_queue_new();
-        application->max_power = 0;
-        application->max_life = 0;
-        g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
-
-        const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
-        application->test = battery_test_get_for_id(test_id);
-
-        const char *duration_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->duration_combo));
-        if (strcmp(duration_id, "minutes-5") == 0) {
-            application->duration_type = DURATION_TIME;
-            application->duration.seconds = 5 * 60;
-        } else if (strcmp(duration_id, "minutes-10") == 0) {
-            application->duration_type = DURATION_TIME;
-            application->duration.seconds = 10 * 60;
-        } else if (strcmp(duration_id, "minutes-30") == 0) {
-            application->duration_type = DURATION_TIME;
-            application->duration.seconds = 30 * 60;
-        } else if (strcmp(duration_id, "until-percent-5") == 0) {
-            application->duration_type = DURATION_PERCENT;
-            application->duration.percent = 5;
-        }
-
-        const char *backlight_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->backlight_combo));
-        application->backlight_level = atoi(backlight_id);
-        gbb_system_state_save(application->system_state);
-        gbb_system_state_set_brightnesses(application->system_state,
-                                          application->backlight_level,
-                                          0);
-
-        if (application->test->prologue_file) {
-            gbb_event_player_play_file(application->player, application->test->prologue_file);
-            application->state = STATE_PROLOGUE;
-        } else {
-            application->state = STATE_WAITING;
-        }
+    if (application->state == STATE_STOPPED) {
+        application_start(application);
+    } else if (application->state == STATE_PROLOGUE ||
+               application->state == STATE_WAITING ||
+               application->state == STATE_RUNNING) {
+        application_stop(application);
     }
-
-    update_sensitive(application);
-    update_labels(application);
-    redraw_graphs(application);
 }
 
 static void
@@ -601,6 +647,20 @@ on_chart_area_draw (GtkWidget      *chart_area,
     cairo_stroke(cr);
 }
 
+static gboolean
+on_delete_event(GtkWidget      *window,
+                GdkEventAny    *event,
+                GbbApplication *application)
+{
+    if (application->state == STATE_STOPPED) {
+        return FALSE;
+    } else {
+        application->exit_requested = TRUE;
+        application_stop(application);
+        return TRUE;
+    }
+}
+
 static void
 gbb_application_activate (GApplication *app)
 {
@@ -620,6 +680,9 @@ gbb_application_activate (GApplication *app)
         die("Cannot load user interface: %s\n", error->message);
 
     application->window = GTK_WIDGET(gtk_builder_get_object(application->builder, "window"));
+    g_signal_connect(application->window, "delete-event",
+                     G_CALLBACK(on_delete_event), application);
+
     gtk_application_add_window(GTK_APPLICATION(app), GTK_WINDOW(application->window));
 
     application->headerbar = GTK_WIDGET(gtk_builder_get_object(application->builder, "headerbar"));
