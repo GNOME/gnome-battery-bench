@@ -349,17 +349,17 @@ on_start_button_clicked(GtkWidget      *button,
         gtk_widget_set_sensitive(application->test_combo, TRUE);
         gtk_widget_set_sensitive(application->duration_combo, TRUE);
         gtk_widget_set_sensitive(application->backlight_combo, TRUE);
+
+        if (application->start_state)
+            gbb_event_player_stop(application->player);
     } else {
         if (application->history) {
             g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
             application->history = NULL;
         }
 
-        if (application->start_state) {
-            gbb_event_player_stop(application->player);
-            gbb_power_state_free(application->start_state);
-            application->start_state = NULL;
-        }
+        g_clear_pointer(&application->start_state, (GFreeFunc)gbb_power_state_free);
+        g_clear_pointer(&application->statistics, (GFreeFunc)gbb_power_statistics_free);
 
         application->history = g_queue_new();
         application->max_power = 0;
