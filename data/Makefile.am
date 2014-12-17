@@ -16,5 +16,9 @@ systembusconfdir= $(sysconfdir)/dbus-1/system.d
 systembusconf_DATA = org.gnome.BatteryBench.Helper.conf
 EXTRA_DIST += $(systembusconf_DATA)
 
+polkitdir = $(datadir)/polkit-1/actions
+polkit_DATA = org.gnome.BatteryBench.Helper.policy
+EXTRA_DIST += $(polkit_DATA)
+
 %.service: %.service.in Makefile
 	$(AM_V_GEN) sed -e "s%@LIBEXECDIR@%$(libexecdir)%" -e "s%@BINDIR@%$(bindir)%" < $< > $@ || rm $@

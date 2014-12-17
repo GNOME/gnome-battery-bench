@@ -21,7 +21,7 @@ x_packages="x11 xi xtst"
 AC_PROG_CC
 AM_PROG_CC_C_O
 
-PKG_CHECK_MODULES([HELPER], [$base_packages])
+PKG_CHECK_MODULES([HELPER], [$base_packages polkit-gobject-1])
 PKG_CHECK_MODULES([COMMANDLINE], [$base_packages $x_packages])
 PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0])
 

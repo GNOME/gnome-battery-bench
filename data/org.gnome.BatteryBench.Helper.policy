@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+  <vendor>GNOME Battery Bench</vendor>
+  <vendor_url>http://git.gnome.org/browse/gnome-battery-bench</vendor_url>
+  <icon_name>battery</icon_name>
+
+  <action id="org.gnome.BatteryBench.Helper.SimulateEvents">
+    <description>Simulate keyboard and mouse events</description>
+    <message>Authentication is simulate keyboard and mouse events</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

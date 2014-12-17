@@ -4,6 +4,7 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <polkit/polkit.h>
 
 #include "evdev-player.h"
 #include "introspection.h"
@@ -183,6 +184,99 @@ on_name_owner_changed (GDBusConnection *connection,
 }
 
 static void
+on_checked_authorization(GObject      *source_object,
+                         GAsyncResult *res,
+                         gpointer      data)
+{
+    PolkitAuthority *authority = POLKIT_AUTHORITY(source_object);
+    GDBusMethodInvocation *invocation = data;
+    GError *error = NULL;
+
+    PolkitAuthorizationResult *result = polkit_authority_check_authorization_finish(authority,
+                                                                                    res, &error);
+    if (error) {
+        g_dbus_method_invocation_return_gerror (invocation, error);
+        g_clear_error(&error);
+        return;
+    }
+
+    if (!polkit_authorization_result_get_is_authorized(result)) {
+        g_dbus_method_invocation_return_error (invocation,
+                                               G_DBUS_ERROR,
+                                               G_DBUS_ERROR_ACCESS_DENIED,
+                                               "Not allowed to simulate events");
+        g_object_unref(result);
+        return;
+    }
+
+    g_object_unref(result);
+
+    GVariant *parameters = g_dbus_method_invocation_get_parameters(invocation);
+    GDBusConnection *connection = g_dbus_method_invocation_get_connection(invocation);
+
+    const gchar *name;
+    g_variant_get (parameters, "(&s)", &name);
+
+    Player *player = g_slice_new0(Player);
+
+    player->connection = g_object_ref(connection);
+    player->name = g_strdup(name);
+    player->path = g_strdup_printf(GBB_DBUS_PATH_PLAYER_BASE "/%d", ++player_serial);
+
+    player->creator = g_strdup(g_dbus_method_invocation_get_sender(invocation));
+    player->creator_changed_connection = g_dbus_connection_signal_subscribe (connection,
+                                                                             "org.freedesktop.DBus", /* bus name */
+                                                                             "org.freedesktop.DBus", /* interface */
+                                                                             "NameOwnerChanged", /* member */
+                                                                             "/org/freedesktop/DBus", /* path */
+                                                                             player->creator, /* arg0 */
+                                                                             G_DBUS_SIGNAL_FLAGS_NONE,
+                                                                             on_name_owner_changed,
+                                                                             player, NULL);
+
+    player->player = GBB_EVENT_PLAYER(gbb_evdev_player_new(player->name));
+
+    player->registration_id = g_dbus_connection_register_object(connection,
+                                                                player->path,
+                                                                gbb_get_introspection_interface(GBB_DBUS_INTERFACE_PLAYER),
+                                                                &player_interface_vtable,
+                                                                player, NULL,
+                                                                &error);
+    if (error)
+        die("Cannot register player: %s\n", error->message);
+
+    g_dbus_method_invocation_return_value(invocation,
+                                          g_variant_new ("(o)", player->path));
+}
+
+static void
+on_got_polkit_authority(GObject      *source_object,
+                        GAsyncResult *res,
+                        gpointer      data)
+{
+    GDBusMethodInvocation *invocation = data;
+    GError *error = NULL;
+
+    PolkitAuthority *authority = polkit_authority_get_finish(res, &error);
+    if (error) {
+        g_dbus_method_invocation_return_gerror (invocation, error);
+        g_clear_error(&error);
+        return;
+    }
+
+    PolkitSubject *subject = polkit_system_bus_name_new(g_dbus_method_invocation_get_sender(invocation));
+    polkit_authority_check_authorization(authority,
+                                         subject,
+                                         "org.gnome.BatteryBench.Helper.SimulateEvents",
+                                         NULL, /* PolkitDetails */
+                                         POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION,
+                                         NULL,
+                                         (GAsyncReadyCallback)on_checked_authorization,
+                                         invocation);
+    g_object_unref(subject);
+}
+
+static void
 helper_handle_method_call(GDBusConnection       *connection,
                           const gchar           *sender,
                           const gchar           *object_path,
@@ -193,42 +287,7 @@ helper_handle_method_call(GDBusConnection       *connection,
                           gpointer               user_data)
 {
     if (g_strcmp0 (method_name, "CreatePlayer") == 0) {
-        const gchar *name;
-
-        g_variant_get (parameters, "(&s)", &name);
-
-        GError *error = NULL;
-
-        Player *player = g_slice_new0(Player);
-
-        player->connection = g_object_ref(connection);
-        player->name = g_strdup(name);
-        player->path = g_strdup_printf(GBB_DBUS_PATH_PLAYER_BASE "/%d", ++player_serial);
-
-        player->creator = g_strdup(g_dbus_method_invocation_get_sender(invocation));
-        player->creator_changed_connection = g_dbus_connection_signal_subscribe (connection,
-                                                                                 "org.freedesktop.DBus", /* bus name */
-                                                                                 "org.freedesktop.DBus", /* interface */
-                                                                                 "NameOwnerChanged", /* member */
-                                                                                 "/org/freedesktop/DBus", /* path */
-                                                                                 player->creator, /* arg0 */
-                                                                                 G_DBUS_SIGNAL_FLAGS_NONE,
-                                                                                 on_name_owner_changed,
-                                                                                 player, NULL);
-
-        player->player = GBB_EVENT_PLAYER(gbb_evdev_player_new(player->name));
-
-        player->registration_id = g_dbus_connection_register_object(connection,
-                                                                    player->path,
-                                                                    gbb_get_introspection_interface(GBB_DBUS_INTERFACE_PLAYER),
-                                                                    &player_interface_vtable,
-                                                                    player, NULL,
-                                                                    &error);
-        if (error)
-            die("Cannot register player: %s\n", error->message);
-
-        g_dbus_method_invocation_return_value(invocation,
-                                              g_variant_new ("(o)", player->path));
+        polkit_authority_get_async (NULL, on_got_polkit_authority, invocation);
     }
 }
 
