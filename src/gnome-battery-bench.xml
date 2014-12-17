@@ -31,11 +31,6 @@
                   <object class="GtkComboBoxText" id="test-combo">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="active_id">standard</property>
-                    <items>
-                      <item id="standard" translatable="yes">Standard</item>
-                      <item id="video" translatable="yes">Video</item>
-                    </items>
                   </object>
                   <packing>
                     <property name="left_attach">1</property>

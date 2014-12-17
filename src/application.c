@@ -3,6 +3,7 @@
 #include <gtk/gtk.h>
 
 #include "application.h"
+#include "battery-test.h"
 #include "remote-player.h"
 #include "power-monitor.h"
 #include "system-state.h"
@@ -12,6 +13,15 @@ typedef enum {
     DURATION_TIME,
     DURATION_PERCENT
 } DurationType;
+
+typedef enum {
+    STATE_STOPPED,
+    STATE_PROLOGUE,
+    STATE_WAITING,
+    STATE_RUNNING,
+    STATE_STOPPING,
+    STATE_EPILOGUE
+} State;
 
 struct _GbbApplication {
     GtkApplication parent;
@@ -34,8 +44,8 @@ struct _GbbApplication {
     GtkWidget *percentage_area;
     GtkWidget *life_area;
 
-    gboolean started;
-    char *filename;
+    State state;
+    BatteryTest *test;
 
     DurationType duration_type;
     union {
@@ -103,23 +113,36 @@ update_labels(GbbApplication *application)
     set_label(application, "ac",
               "%s", state->online ? "online" : "offline");
 
-    char *title;
-    if (!application->started) {
+    char *title = NULL;
+    switch (application->state) {
+    case STATE_STOPPED:
         title = g_strdup("GNOME Battery Bench");
-    } else if (application->started && !application->statistics) {
+        break;
+    case STATE_PROLOGUE:
+        title = g_strdup("GNOME Battery Bench - setting up");
+        break;
+    case STATE_WAITING:
         if (state->online)
             title = g_strdup("GNOME Battery Bench - disconnect from AC to start");
         else
             title = g_strdup("GNOME Battery Bench - waiting for data");
-    } else {
+        break;
+    case STATE_RUNNING:
+    {
         int h, m, s;
         break_time((state->time_us - application->start_state->time_us) / 1000000, &h, &m, &s);
         title = g_strdup_printf("GNOME Battery Bench - running (%d:%02d:%02d)", h, m, s);
+        break;
     }
-
+    case STATE_STOPPING:
+        title = g_strdup("GNOME Battery Bench - stopping");
+        break;
+    case STATE_EPILOGUE:
+        title = g_strdup("GNOME Battery Bench - cleaning up");
+        break;
+    }
     gtk_header_bar_set_title(GTK_HEADER_BAR(application->headerbar), title);
     g_free(title);
-
 
     if (state->energy_now >= 0)
         set_label(application, "energy-now", "%.1fWH", state->energy_now);
@@ -292,26 +315,56 @@ add_to_history(GbbApplication *application,
 }
 
 static void
+update_sensitive(GbbApplication *application)
+{
+    gboolean start_sensitive = FALSE;
+    gboolean controls_sensitive = FALSE;
+
+    switch (application->state) {
+    case STATE_STOPPED:
+        start_sensitive = gbb_event_player_is_ready(application->player);
+        controls_sensitive = TRUE;
+        break;
+    case STATE_PROLOGUE:
+    case STATE_WAITING:
+    case STATE_STOPPING:
+    case STATE_EPILOGUE:
+        start_sensitive = FALSE;
+        controls_sensitive = FALSE;
+        break;
+    case STATE_RUNNING:
+        start_sensitive = TRUE;
+        controls_sensitive = FALSE;
+        break;
+    }
+
+    gtk_widget_set_sensitive(application->start_button, start_sensitive);
+    gtk_widget_set_sensitive(application->test_combo, controls_sensitive);
+    gtk_widget_set_sensitive(application->duration_combo, controls_sensitive);
+    gtk_widget_set_sensitive(application->backlight_combo, controls_sensitive);
+}
+
+static void
 on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbApplication  *application)
 {
-    if (application->started) {
-        if (application->start_state == NULL) {
-            GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-            if (!state->online) {
-                application->start_state = state;
-                gbb_event_player_play_file(application->player, application->filename);
-            } else {
-                gbb_power_state_free(state);
-            }
+    if (application->state == STATE_WAITING) {
+        GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+        if (!state->online) {
+            application->start_state = state;
+            application->state = STATE_RUNNING;
+            gbb_event_player_play_file(application->player, application->test->loop_file);
+            update_sensitive(application);
         } else {
-            if (application->statistics)
-                gbb_power_statistics_free(application->statistics);
-
-            GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-            application->statistics = gbb_power_monitor_compute_statistics(monitor, application->start_state, state);
-            add_to_history(application, state);
+            gbb_power_state_free(state);
         }
+    } else if (application->state == STATE_RUNNING) {
+        if (application->statistics)
+            gbb_power_statistics_free(application->statistics);
+
+        GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+        application->statistics = gbb_power_monitor_compute_statistics(monitor, application->start_state, state);
+        add_to_history(application, state);
     }
 
     update_labels(application);
@@ -321,7 +374,7 @@ static void
 on_player_ready(GbbEventPlayer *player,
                 GbbApplication *application)
 {
-    gtk_widget_set_sensitive(application->start_button, TRUE);
+    update_sensitive(application);
     update_labels(application);
 }
 
@@ -329,30 +382,43 @@ static void
 on_player_finished(GbbEventPlayer *player,
                    GbbApplication *application)
 {
-    if (application->started) {
-        gbb_event_player_play_file(player, application->filename);
+    if (application->state == STATE_PROLOGUE) {
+        application->state = STATE_WAITING;
+    } else if (application->state == STATE_RUNNING) {
+        gbb_event_player_play_file(player, application->test->loop_file);
+    } else if (application->state == STATE_STOPPING) {
+        if (application->test->epilogue_file) {
+            gbb_event_player_play_file(application->player, application->test->epilogue_file);
+            application->state = STATE_EPILOGUE;
+        } else {
+            application->state = STATE_STOPPED;
+            application->test = NULL;
+        }
+    } else if (application->state == STATE_EPILOGUE) {
+        application->state = STATE_STOPPED;
+        application->test = NULL;
     }
+
+    update_labels(application);
+    update_sensitive(application);
 }
 
 static void
 on_start_button_clicked(GtkWidget      *button,
                         GbbApplication *application)
 {
-    if (application->started) {
-        application->started = FALSE;
-        g_free(application->filename);
-        application->filename = NULL;
-
+    if (application->state == STATE_WAITING || application->state == STATE_RUNNING) {
         gbb_system_state_restore(application->system_state);
 
         g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
-        gtk_widget_set_sensitive(application->test_combo, TRUE);
-        gtk_widget_set_sensitive(application->duration_combo, TRUE);
-        gtk_widget_set_sensitive(application->backlight_combo, TRUE);
 
-        if (application->start_state)
+        if (application->state == STATE_RUNNING) {
             gbb_event_player_stop(application->player);
-    } else {
+        }
+
+        application->state = STATE_STOPPING;
+
+    } else if (application->state == STATE_STOPPED) {
         if (application->history) {
             g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
             application->history = NULL;
@@ -364,16 +430,10 @@ on_start_button_clicked(GtkWidget      *button,
         application->history = g_queue_new();
         application->max_power = 0;
         application->max_life = 0;
-
-        gtk_widget_set_sensitive(application->test_combo, FALSE);
-        gtk_widget_set_sensitive(application->duration_combo, FALSE);
-        gtk_widget_set_sensitive(application->backlight_combo, FALSE);
         g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
 
         const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
-        char *testfile = g_strconcat(test_id, ".batterytest", NULL);
-        application->filename = g_build_filename(PKGDATADIR, "tests", testfile, NULL);
-        g_free(testfile);
+        application->test = battery_test_get_for_id(test_id);
 
         const char *duration_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->duration_combo));
         if (strcmp(duration_id, "minutes-5") == 0) {
@@ -396,10 +456,16 @@ on_start_button_clicked(GtkWidget      *button,
         gbb_system_state_set_brightnesses(application->system_state,
                                           application->backlight_level,
                                           0);
-        application->started = TRUE;
 
+        if (application->test->prologue_file) {
+            gbb_event_player_play_file(application->player, application->test->prologue_file);
+            application->state = STATE_PROLOGUE;
+        } else {
+            application->state = STATE_WAITING;
+        }
     }
 
+    update_sensitive(application);
     update_labels(application);
     redraw_graphs(application);
 }
@@ -559,6 +625,15 @@ gbb_application_activate (GApplication *app)
     application->headerbar = GTK_WIDGET(gtk_builder_get_object(application->builder, "headerbar"));
 
     application->test_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "test-combo"));
+    GList *tests = battery_test_list_all();
+    GList *l;
+    for (l = tests; l; l = l->next) {
+        BatteryTest *test = l->data;
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(application->test_combo),
+                                  test->id, test->name);
+    }
+    gtk_combo_box_set_active_id(GTK_COMBO_BOX(application->test_combo), "lightduty");
+
     application->duration_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "duration-combo"));
     application->backlight_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "backlight-combo"));
 

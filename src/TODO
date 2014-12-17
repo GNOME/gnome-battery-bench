@@ -1,14 +1,9 @@
 Consider switching to upower
-Polkit the service
 
 Stop and reset brightness on exit
 Add shortcut for stop
-graph isn't right for until-depletion
 Handle current instead of energy
-
-Read tests from directory
-Add idle test
-Add test prologue/epilogue
+Actually handle hitting stop criteria
 Log test runs
 Show logs in UI
 

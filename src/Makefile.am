@@ -4,6 +4,8 @@ libexec_PROGRAMS=gnome-battery-bench-helper
 base_sources =					\
 	power-monitor.c				\
 	power-monitor.h				\
+	battery-test.c				\
+	battery-test.h				\
 	evdev-player.c				\
 	evdev-player.h				\
 	event-player.c				\
@@ -33,14 +35,14 @@ gnome_battery_bench_SOURCES =			\
 	system-state.h				\
 	gnome-battery-bench.gresource.c
 
-gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS)
+gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
 gbb_LDADD = $(COMMANDLINE_LIBS)
 
 gbb_SOURCES =					\
 	$(x_sources)				\
 	commandline.c
 
-gnome_battery_bench_helper_CPPFLAGS = $(HELPER_CFLAGS)
+gnome_battery_bench_helper_CPPFLAGS = $(HELPER_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
 gnome_battery_bench_helper_LDADD = $(HELPER_LIBS)
 
 gnome_battery_bench_helper_SOURCES =		\

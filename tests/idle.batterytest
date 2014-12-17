@@ -1,0 +1,3 @@
+[batterytest]
+name=Idle
+description=Test sitting idle with a bit of mouse motion
