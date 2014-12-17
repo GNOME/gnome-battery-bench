@@ -1,5 +1,8 @@
 /* -*- mode: C; c-file-style: "stroustrup"; indent-tabs-mode: nil; -*- */
 
+#include <stdlib.h>
+#include <string.h>
+
 #include <gtk/gtk.h>
 
 #include <gdk/gdkx.h>
@@ -114,8 +117,6 @@ clear_label(GbbApplication *application,
 static void
 update_labels(GbbApplication *application)
 {
-    GString *text = g_string_new (NULL);
-
     GbbPowerState *state = gbb_power_monitor_get_state(application->monitor);
     set_label(application, "ac",
               "%s", state->online ? "online" : "offline");

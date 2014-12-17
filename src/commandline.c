@@ -29,15 +29,7 @@ usage(void)
     die("Usage: gbb [--record|--playback|--remote-playback|--test]");
 }
 
-void *xcalloc(size_t nmemb, size_t size)
-{
-    void *result = calloc(nmemb, size);
-    if (!result)
-        die_errno("malloc");
-    return result;
-}
-
-void
+static void
 record(void)
 {
     GbbEventRecorder *recorder;
@@ -91,13 +83,15 @@ do_playback(GbbEventPlayer *player,
     g_main_loop_run (loop);
 }
 
-void playback(const char *filename)
+static void
+playback(const char *filename)
 {
     GbbEventPlayer *player = GBB_EVENT_PLAYER(gbb_evdev_player_new("Gnome Battery Bench Test"));
     do_playback(player, filename);
 }
 
-void remote_playback(const char *filename)
+static void
+remote_playback(const char *filename)
 {
     GbbEventPlayer *player = GBB_EVENT_PLAYER(gbb_remote_player_new("Gnome Battery Bench Test"));
     do_playback(player, filename);
@@ -138,7 +132,7 @@ on_power_monitor_changed(GbbPowerMonitor *monitor)
 
 }
 
-void
+static void
 test(void)
 {
     GbbPowerMonitor *monitor;

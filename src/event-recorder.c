@@ -46,7 +46,7 @@ dump_event(GbbEventRecorder *recorder,
             comment ? comment : "");
 }
 
-void
+static void
 xrecord_callback (XPointer              closure,
                   XRecordInterceptData *recorded_data)
 {

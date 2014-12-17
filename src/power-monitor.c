@@ -68,7 +68,7 @@ gbb_power_state_get_percent (GbbPowerState *state)
         return -1;
 }
 
-gboolean
+static gboolean
 gbb_power_state_equal(GbbPowerState *a,
                       GbbPowerState *b)
 {
@@ -288,7 +288,7 @@ gbb_power_monitor_class_init(GbbPowerMonitorClass *monitor_class)
                       G_TYPE_NONE, 0);
 }
 
-void
+static void
 add_to (double *total, double  increment)
 {
     if (*total >= 0)
@@ -297,7 +297,7 @@ add_to (double *total, double  increment)
         *total = increment;
 }
 
-GbbPowerState *
+static GbbPowerState *
 read_state(GbbPowerMonitor *monitor,
            GbbPowerState   *state)
 {
