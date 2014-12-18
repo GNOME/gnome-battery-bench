@@ -1,7 +1,6 @@
 /* -*- mode: C; c-file-style: "stroustrup"; indent-tabs-mode: nil; -*- */
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -12,19 +11,13 @@
 #include <libevdev/libevdev.h>
 #include <libevdev/libevdev-uinput.h>
 
+#include "event-log.h"
 #include "evdev-player.h"
 #include "util.h"
 
 typedef struct _GbbEvdevPlayerClass GbbEvdevPlayerClass;
 
 static void queue_event(GbbEvdevPlayer *player);
-
-typedef struct {
-    char *name;
-    unsigned time;
-    int x_root, y_root;
-    int detail;
-} Event;
 
 struct _GbbEvdevPlayer {
     GbbEventPlayer parent;
@@ -38,7 +31,7 @@ struct _GbbEvdevPlayer {
     guint ready_timeout;
     gboolean ready;
 
-    Event *next_event;
+    GbbEvent *next_event;
     guint next_event_timeout;
 };
 
@@ -61,63 +54,11 @@ write_event(const struct libevdev_uinput *uinput_dev,
         die("Can't write event (%u %u %i): %s", type, code, value, strerror(-rc));
 }
 
-static Event *
-read_event(GbbEvdevPlayer *player)
-{
-    Event *event = NULL;
-
-    while (event == NULL) {
-        GError *error = NULL;
-        char **fields;
-        char *hash;
-
-        char *line = g_data_input_stream_read_line (player->input, NULL, NULL, &error);
-        if (error)
-            die("Error readimg from input: %s", error->message);
-
-        if (!line)
-            return NULL;
-
-        hash = index(line, '#');
-        if (hash)
-            *hash = '\0';
-        g_strstrip(line);
-
-        fields = g_strsplit (line, ",", -1);
-
-        if (!*line)
-            goto next;
-        if (g_strv_length (fields) != 5)
-            die("Bad field count in '%s'", line);
-
-        event = g_slice_new(Event);
-
-        event->name = g_strdup(fields[0]);
-        sscanf(fields[1], "%u", &event->time);
-        event->x_root = atoi(fields[2]);
-        event->y_root = atoi(fields[3]);
-        event->detail = atoi(fields[4]);
-
-    next:
-        g_strfreev(fields);
-        g_free(line);
-    }
-
-    return event;
-}
-
-static void
-event_free(Event *event)
-{
-    g_free(event->name);
-    g_slice_free(Event, event);
-}
-
 static gboolean
 next_event_timeout(void *data)
 {
     GbbEvdevPlayer *player = data;
-    Event *event = player->next_event;
+    GbbEvent *event = player->next_event;
 
     player->next_event = NULL;
     player->next_event_timeout = 0;
@@ -152,7 +93,7 @@ next_event_timeout(void *data)
         write_event(player->uidev_mouse, EV_SYN, SYN_REPORT, 0);
     }
 
-    event_free(event);
+    gbb_event_free(event);
 
     queue_event(player);
 
@@ -162,9 +103,14 @@ next_event_timeout(void *data)
 static void
 queue_event(GbbEvdevPlayer *player)
 {
+    GError *error = NULL;
+
     g_return_if_fail(player->next_event == NULL);
 
-    player->next_event = read_event(player);
+    player->next_event = gbb_event_read(player->input,
+                                        NULL, &error);
+    if (error)
+        die("Error reading event log: %s\n", error->message);
 
     gint64 remaining;
     if (player->next_event) {
@@ -220,7 +166,7 @@ gbb_evdev_player_stop(GbbEventPlayer *event_player)
     GbbEvdevPlayer *player = GBB_EVDEV_PLAYER(event_player);
     GError *error = NULL;
 
-    g_clear_pointer(&player->next_event, event_free);
+    g_clear_pointer(&player->next_event, gbb_event_free);
 
     if (player->next_event_timeout) {
         g_source_remove(player->next_event_timeout);

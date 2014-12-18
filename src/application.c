@@ -9,6 +9,7 @@
 #include <X11/keysymdef.h>
 
 #include "application.h"
+#include "event-log.h"
 #include "battery-test.h"
 #include "remote-player.h"
 #include "power-monitor.h"
@@ -54,6 +55,7 @@ struct _GbbApplication {
     gboolean stop_requested;
     gboolean exit_requested;
     BatteryTest *test;
+    double loop_duration;
 
     DurationType duration_type;
     union {
@@ -217,7 +219,23 @@ update_labels(GbbApplication *application)
 static double
 round_up_time(double seconds)
 {
-    if (seconds <= 60 * 60)
+    if (seconds <= 5 * 60)
+        return 5 * 60;
+    else if (seconds <= 6 * 60)
+        return 6 * 60;
+    else if (seconds <= 10 * 60)
+        return 10 * 60;
+    else if (seconds <= 12 * 60)
+        return 12 * 60;
+    else if (seconds <= 15 * 60)
+        return 15 * 60;
+    else if (seconds <= 20 * 60)
+        return 20 * 60;
+    else if (seconds <= 30 * 60)
+        return 30 * 60;
+    else if (seconds <= 40 * 60)
+        return 40 * 60;
+    else if (seconds <= 60 * 60)
         return 60 * 60;
     else if (seconds <= 2 * 60 * 60)
         return 2 * 60 * 60;
@@ -239,6 +257,61 @@ redraw_graphs(GbbApplication *application)
     gtk_widget_queue_draw(application->power_area);
     gtk_widget_queue_draw(application->percentage_area);
     gtk_widget_queue_draw(application->life_area);
+}
+
+static void
+update_chart_ranges(GbbApplication *application)
+{
+    double max_power = application->max_power > 0 ? application->max_power : 10;
+    double max_life = application->max_life > 0 ? application->max_life : 5 * 60 * 60;
+
+    if (max_power <= 5)
+        application->graph_max_power = 5;
+    else if (max_power <= 10)
+        application->graph_max_power = 10;
+    else if (max_power <= 15)
+        application->graph_max_power = 15;
+    else if (max_power <= 20)
+        application->graph_max_power = 20;
+    else if (max_power <= 30)
+        application->graph_max_power = 30;
+    else if (max_power <= 50)
+        application->graph_max_power = 50;
+    else
+        application->graph_max_power = 100;
+
+    set_label(application, "power-max", "%.0fW", application->graph_max_power);
+
+    application->graph_max_life = round_up_time(max_life);
+
+    if (application->graph_max_life >= 60 * 60)
+        set_label(application, "life-max", "%.0fh", application->graph_max_life / (60 * 60));
+    else
+        set_label(application, "life-max", "%.0fm", application->graph_max_life / (60));
+
+    switch (application->duration_type) {
+    case DURATION_TIME:
+        {
+            if (application->test)
+                application->graph_max_time = round_up_time(application->duration.seconds + application->loop_duration);
+            else
+                application->graph_max_time = application->duration.seconds;
+        }
+        break;
+    case DURATION_PERCENT:
+        if (application->statistics)
+            application->graph_max_time = round_up_time(application->statistics->battery_life);
+        else
+            application->graph_max_time = round_up_time(5 * 60 * 60);
+        break;
+    }
+
+    if (application->graph_max_time >= 60 * 60)
+        set_label(application, "time-max", "%.0f:00", application->graph_max_time / (60 * 60));
+    else
+        set_label(application, "time-max", "0:%02.0f", application->graph_max_time / (60));
+
+    redraw_graphs(application);
 }
 
 static void
@@ -272,54 +345,18 @@ add_to_history(GbbApplication *application,
 
     g_queue_push_tail(application->history, state);
 
-    GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                              last_state, state);
-    application->max_power = MAX(interval_stats->power, application->max_power);
-    if (application->max_power <= 5)
-        application->graph_max_power = 5;
-    else if (application->max_power <= 10)
-        application->graph_max_power = 10;
-    else if (application->max_power <= 15)
-        application->graph_max_power = 15;
-    else if (application->max_power <= 20)
-        application->graph_max_power = 20;
-    else if (application->max_power <= 30)
-        application->graph_max_power = 30;
-    else if (application->max_power <= 50)
-        application->graph_max_power = 50;
-    else
-        application->graph_max_power = 100;
-
-    set_label(application, "power-max", "%.0fW", application->graph_max_power);
-
     GbbPowerStatistics *overall_stats = gbb_power_monitor_compute_statistics(application->monitor,
                                                                              application->start_state, state);
     application->max_life = MAX(overall_stats->battery_life, application->max_life);
-    application->graph_max_life = round_up_time(application->max_life);
 
-    if (application->graph_max_life >= 60 * 60)
-        set_label(application, "life-max", "%.0fh", application->graph_max_life / (60 * 60));
-    else
-        set_label(application, "life-max", "%.0fm", application->graph_max_life / (60));
-
-    switch (application->duration_type) {
-    case DURATION_TIME:
-        application->graph_max_time = application->duration.seconds;
-        break;
-    case DURATION_PERCENT:
-        application->graph_max_time = round_up_time(overall_stats->battery_life);
-        break;
-    }
-
-    if (application->graph_max_time >= 60 * 60)
-        set_label(application, "time-max", "%.0f:00", application->graph_max_time / (60 * 60));
-    else
-        set_label(application, "time-max", "0:%02.0f", application->graph_max_time / (60));
+    GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
+                                                                              last_state, state);
+    application->max_power = MAX(interval_stats->power, application->max_power);
 
     gbb_power_statistics_free(interval_stats);
     gbb_power_statistics_free(overall_stats);
 
-    redraw_graphs(application);
+    update_chart_ranges(application);
 }
 
 static void
@@ -540,7 +577,18 @@ on_player_finished(GbbEventPlayer *player,
             application_stop(application);
         }
     } else if (application->state == STATE_RUNNING) {
-        gbb_event_player_play_file(player, application->test->loop_file);
+        GbbPowerState *last_state = application->history->tail ? application->history->tail->data : application->start_state;
+        gboolean done;
+
+        if (application->duration_type == DURATION_TIME)
+            done = (last_state->time_us - application->start_state->time_us) / 1000000. > application->duration.seconds;
+        else
+            done = gbb_power_state_get_percent(last_state) < application->duration.percent;
+
+        if (done)
+            application_set_epilogue(application);
+        else
+            gbb_event_player_play_file(player, application->test->loop_file);
     } else if (application->state == STATE_STOPPING) {
         application_set_epilogue(application);
     } else if (application->state == STATE_EPILOGUE) {
@@ -570,6 +618,13 @@ application_start(GbbApplication *application)
     const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
     application->test = battery_test_get_for_id(test_id);
 
+    GFile *loop_file = g_file_new_for_path(application->test->loop_file);
+    GError *error = NULL;
+    application->loop_duration = gbb_event_log_duration(loop_file, NULL, &error) / 1000.;
+    if (error)
+        die("Can't get duration of .loop file: %s", error->message);
+    g_object_unref(loop_file);
+
     const char *duration_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->duration_combo));
     if (strcmp(duration_id, "minutes-5") == 0) {
         application->duration_type = DURATION_TIME;
@@ -593,6 +648,8 @@ application_start(GbbApplication *application)
                                       0);
 
     setup_stop_shortcut(application);
+
+    update_chart_ranges(application);
 
     if (application->test->prologue_file) {
         gbb_event_player_play_file(application->player, application->test->prologue_file);
@@ -651,45 +708,44 @@ on_chart_area_draw (GtkWidget      *chart_area,
 
     int n_y_ticks = 5;
     if (chart_area == application->power_area) {
-        if (application->history && application->history->tail && application->graph_max_power == 30)
+        if ((int)(0.5 + application->graph_max_power) == 30)
             n_y_ticks = 6;
     } else if (chart_area == application->life_area) {
-        if (application->history && application->history->tail) {
-            int graph_max_life = (int)(0.5 + application->graph_max_life);
-            switch (graph_max_life) {
-            case 60 * 60:
-            case 2 * 60 * 60:
-            case 24 * 60 * 60:
-            case 48 * 60 * 60:
-                n_y_ticks = 6;
-                break;
-            }
+        int graph_max_life = (int)(0.5 + application->graph_max_life);
+        switch (graph_max_life) {
+        case 6 * 60:
+        case 12 * 60:
+        case 60 * 60:
+        case 2 * 60 * 60:
+        case 24 * 60 * 60:
+        case 48 * 60 * 60:
+            n_y_ticks = 6;
+            break;
         }
     }
 
-    int graph_max_time = 60 * 60;
-    if (application->history && application->history->tail)
-        graph_max_time = (int)(0.5 + application->graph_max_time);
+    int graph_max_time = (int)(0.5 + application->graph_max_time);
     int n_x_ticks;
     switch (graph_max_time) {
-    case 5 * 60:
-    case 10 * 60:
-    case 30 * 60:
-        n_x_ticks = 10;
+    case 15 * 60:
+    case 15 * 60 * 60:
+        n_x_ticks = 5;
         break;
     case 60 * 60:
         n_x_ticks = 6;
         break;
-    case 2 * 60 * 60:
-        n_x_ticks = 12;
-        break;
+    case 5 * 60:
+    case 10 * 60:
+    case 20 * 60:
+    case 30 * 60:
+    case 40 * 60:
     case 5 * 60 * 60:
     case 10 * 60 * 60:
         n_x_ticks = 10;
         break;
-    case 15 * 60 * 60:
-        n_x_ticks = 5;
-        break;
+    case 6 * 60:
+    case 12 * 60:
+    case 2 * 60 * 60:
     case 24 * 60 * 60:
     case 48 * 60 * 60:
         n_x_ticks = 12;
@@ -715,11 +771,17 @@ on_chart_area_draw (GtkWidget      *chart_area,
     cairo_set_source_rgb(cr, 0.8, 0.8, 0.8);
     cairo_stroke(cr);
 
-    if (chart_area == application->percentage_area && application->duration_type == DURATION_PERCENT) {
+    if (application->test && chart_area == application->percentage_area && application->duration_type == DURATION_PERCENT) {
         double y = (1 - application->duration.percent / 100.) * allocation.height;
         cairo_move_to(cr, 1.0, y);
         cairo_line_to(cr, allocation.width - 1.0, y);
-        cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+        cairo_set_source_rgb(cr, 1.0, 0.5, 0.3);
+        cairo_stroke(cr);
+    } else if (application->test && application->duration_type == DURATION_TIME) {
+        double x = (application->duration.seconds / application->graph_max_time) * allocation.width;
+        cairo_move_to(cr, x, 1.0);
+        cairo_line_to(cr, x, allocation.width - 1.0);
+        cairo_set_source_rgb(cr, 1.0, 0.5, 0.3);
         cairo_stroke(cr);
     }
 
@@ -861,6 +923,9 @@ gbb_application_init(GbbApplication *application)
 {
     application->monitor = gbb_power_monitor_new();
     application->system_state = gbb_system_state_new();
+    application->graph_max_power = 10;
+    application->graph_max_time = 60 * 60;
+    application->graph_max_life = 5 * 60 * 60;
 
     application->player = GBB_EVENT_PLAYER(gbb_remote_player_new("GNOME Battery Bench"));
     g_signal_connect(application->player, "ready",

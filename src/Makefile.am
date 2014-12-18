@@ -8,6 +8,8 @@ base_sources =					\
 	battery-test.h				\
 	evdev-player.c				\
 	evdev-player.h				\
+	event-log.c				\
+	event-log.h				\
 	event-player.c				\
 	event-player.h				\
 	introspection.c				\

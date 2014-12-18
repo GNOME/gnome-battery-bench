@@ -1,5 +1,17 @@
+Bugs
+====
+Fix reversed mouse-wheel
 Handle current instead of energy
 Actually handle hitting stop criteria
+
+Cleanups
+========
+Add idle-exit to the helper
+Move event *writing* to event-log.[ch]
+Consider switching to upower
+
+Enhancements
+============
 Remember in GSettings the users selections for the test
 Log test runs
 Show logs in UI
@@ -8,4 +20,3 @@ Show logs in UI
   Tuesday, December 5th
   Power: 5WH    Estimated battery life: 5:32    Estimated battery life design: 7:31
 
-Consider switching to upower
