@@ -13,7 +13,7 @@
     battery lifetime.
   </description>
 
-  <category rdf:resource="http://api.gnome.org/doap-extensions#development" />
+  <category rdf:resource="http://api.gnome.org/doap-extensions#apps" />
   <programming-language>C</programming-language>
 
   <maintainer>
