@@ -1,0 +1,26 @@
+<Project xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+         xmlns:foaf="http://xmlns.com/foaf/0.1/"
+         xmlns:gnome="http://api.gnome.org/doap-extensions#"
+         xmlns="http://usefulinc.com/ns/doap#">
+
+  <name xml:lang="en">gnome-battery-bench</name>
+  <shortdesc xml:lang="en">Measure power usage in defined scenarios</shortdesc>
+  <description>
+    This application is designed for measuring power usage. It does it by
+    recording the reported battery statistics as it replays recorded event
+    logs, and then using that to estimate power consumption and total
+    battery lifetime.
+  </description>
+
+  <category rdf:resource="http://api.gnome.org/doap-extensions#development" />
+  <programming-language>C</programming-language>
+
+  <maintainer>
+    <foaf:Person>
+      <foaf:name>Owen Taylor</foaf:name>
+      <foaf:mbox rdf:resource="mailto:otaylor@fishsoup.net" />
+      <gnome:userid>otaylor</gnome:userid>
+    </foaf:Person>
+  </maintainer>
+</Project>

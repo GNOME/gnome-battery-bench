@@ -1,8 +1,9 @@
 Bugs
 ====
 Fix reversed mouse-wheel
-Handle current instead of energy
+Handle machines which only provide charge/current rather than energy/power
 Different handling of ranges on log pages with ->test null and not
+Do a better job of cleaning up the Super-Q at the end of recorded logs.
 
 Cleanups
 ========

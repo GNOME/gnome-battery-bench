@@ -1,0 +1,114 @@
+About
+=====
+This application is designed for measuring power usage. It does it by
+recording the reported battery statistics as it replays recorded event
+histories, and then using that to estimate power consumption and total
+battery lifetime.
+
+Usage
+=====
+The basic operation of gnome-battery-bench is:
+
+ 1) Select the test and test options such as duration
+ 2) Make sure the laptop is running on battery
+ 3) Hit the Start button
+ 4) Wait for the test to end
+
+To end early you can use a global Control-Alt-Q global shortcut or
+hit the Stop button. It may take a while for the test to end after
+being stopped since gnome-battery-bench plays the "epilogue" event
+history to try and clean up from the test.
+
+The most relevant displayed statistics are:
+
+ Average power: average power during the test
+ Estimated battery life: how long the battery would last from full
+   at that power rate.
+
+Each test run is saved on disk in  ~/.local/share/gnome-battery-bench/logs,
+and older tests can be viewed by switching to the Logs view using the
+control in the title bar.
+
+You will want to stop as many extraneous programs as possible when
+running the tests. (Unless you are trying to test how much power those
+programs take!) Browsers in particular will add a lot of noise.
+
+gnome-battery-bench tries to disable the keyboard backlight when
+running tests - if this doesn't work, you should disable the keyboard
+backlight in BIOS settings to get consistent results - the keyboard
+backlight can take a quite surprising amount of power.
+
+Adding new tests
+================
+A test consists of a number of files, which can either be installed
+systemwide in /usr/share/gnome-battery-bench/tests or per-user in
+~/.config/gnome-battery-bench:
+
+ <test-id>.batterytest
+ <test-id>.prologue    # optional
+ <test-id>.loop
+ <test-id>.epilogue    # optional
+
+The .batterytest file contains meta-information about the test such
+as the name of the test. The other files are event log files that are
+replayed during the test:
+
+ 1) prologue filed is played
+ 2) power logging is started
+ 3) the loop file is played repeatedly until the test time is finished
+    or the user ends the test.
+ 4) power logging is terminated
+ 5) epilogue file is played
+
+To record a event log file you can use the gbb command line tool supplied
+with gnome-battery-bench:
+
+ gbb --record > mytest.loop
+
+Recording is terminated with Super-Q. You currently will have to edit the
+to remove parts of the Super-Q shortcut at the end. (A bug.)
+
+Installation
+============
+Because of the root-level helper daemon it uses, gnome-battery-bench needs
+to be installed system-wide. This is done as:
+
+ ./autogen.sh --prefix=/usr --sysconfdir=/etc [--libdir=/usr/lib64]
+ # The libdir setting is only correct on some distros such as Fedora.)
+ make
+ sudo make install
+
+The configure script will complain about missing libraries - which are
+too numerous to be listed here, but should be available on any system
+with GNOME 3.14 or newer installed.
+
+Security
+========
+A helper daemon that runs with root privileges is used to simulate an
+attached keyboard and mouse and replay events at a low level. Since
+arbitrary events can be replayed, this could in theory be used to
+attack another user's account on a multi-user system.
+
+To eliminate any security risk, Polkit is configured by default so that
+an admin password has to be entered when starting gnome-battery-bench.
+
+To allow gnome-battery-bench to be run by admin users without entering
+a password, you can create a file /etc/polkit-1/rules.d/10-gnome-battery-bench-local.rules
+with contents:
+
+---
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.gnome.BatteryBench.Helper.SimulateEvents" &&
+         subject.isInGroup("wheel")) {
+             return polkit.Result.YES;
+    }
+});
+---
+
+It probably would be possible to enhance the helper daemon sufficiently
+so that events can only be played back to the originating session of playback
+requests, but this would require quite detailed understanding of the mechanisms
+for binding input devices to seats and tracking active sessions per each seat.
+
+
+
