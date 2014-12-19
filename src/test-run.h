@@ -49,8 +49,8 @@ void            gbb_test_run_set_screen_brightness (GbbTestRun *run,
                                                     int         screen_brightness);
 int             gbb_test_run_get_screen_brightness (GbbTestRun *run);
 
-void gbb_test_run_add(GbbTestRun    *run,
-                      GbbPowerState *state);
+void gbb_test_run_add(GbbTestRun          *run,
+                      const GbbPowerState *state);
 
 GbbBatteryTest *gbb_test_run_get_test      (GbbTestRun *run);
 double          gbb_test_run_get_loop_time (GbbTestRun *run);

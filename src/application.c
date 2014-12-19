@@ -42,8 +42,8 @@ struct _GbbApplication {
 
     GFile *log_folder;
 
-    GbbPowerState *start_state;
-    GbbPowerStatistics *statistics;
+    GbbPowerState *current_state;
+    GbbPowerState *previous_state;
 
     GtkBuilder *builder;
     GtkWidget *window;
@@ -117,9 +117,10 @@ clear_label(GbbApplication *application,
 static void
 update_labels(GbbApplication *application)
 {
-    GbbPowerState *state = gbb_power_monitor_get_state(application->monitor);
+    const GbbPowerState *current_state = application->current_state;
+
     set_label(application, "ac",
-              "%s", state->online ? "online" : "offline");
+              "%s", current_state->online ? "online" : "offline");
 
     char *title = NULL;
     switch (application->state) {
@@ -130,7 +131,7 @@ update_labels(GbbApplication *application)
         title = g_strdup("GNOME Battery Bench - setting up");
         break;
     case STATE_WAITING:
-        if (state->online)
+        if (current_state->online)
             title = g_strdup("GNOME Battery Bench - disconnect from AC to start");
         else
             title = g_strdup("GNOME Battery Bench - waiting for data");
@@ -139,7 +140,7 @@ update_labels(GbbApplication *application)
     {
         int h, m, s;
         const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
-        break_time((state->time_us - start_state->time_us) / 1000000, &h, &m, &s);
+        break_time((current_state->time_us - start_state->time_us) / 1000000, &h, &m, &s);
         title = g_strdup_printf("GNOME Battery Bench - running (%d:%02d:%02d)", h, m, s);
         break;
     }
@@ -153,65 +154,72 @@ update_labels(GbbApplication *application)
     gtk_header_bar_set_title(GTK_HEADER_BAR(application->headerbar), title);
     g_free(title);
 
-    if (state->energy_now >= 0)
-        set_label(application, "energy-now", "%.1fWH", state->energy_now);
+    if (current_state->energy_now >= 0)
+        set_label(application, "energy-now", "%.1fWH", current_state->energy_now);
     else
         clear_label(application, "energy-now");
 
-    if (state->energy_full >= 0)
-        set_label(application, "energy-full", "%.1fWH", state->energy_full);
+    if (current_state->energy_full >= 0)
+        set_label(application, "energy-full", "%.1fWH", current_state->energy_full);
     else
         clear_label(application, "energy-full");
 
-    if (state->energy_now >= 0 && state->energy_full >= 0)
-        set_label(application, "percentage", "%.1f%%", 100. * state->energy_now / state->energy_full);
+    if (current_state->energy_now >= 0 && current_state->energy_full >= 0)
+        set_label(application, "percentage", "%.1f%%", 100. * current_state->energy_now / current_state->energy_full);
     else
         clear_label(application, "percentage");
 
-    if (state->energy_full_design >= 0)
-        set_label(application, "energy-full-design", "%.1fWH", state->energy_full_design);
+    if (current_state->energy_full_design >= 0)
+        set_label(application, "energy-full-design", "%.1fWH", current_state->energy_full_design);
     else
         clear_label(application, "energy-full-design");
 
-    if (state->energy_now >= 0 && state->energy_full_design >= 0)
-        set_label(application, "percentage-design", "%.1f%%", 100. * state->energy_now / state->energy_full_design);
+    if (current_state->energy_now >= 0 && current_state->energy_full_design >= 0)
+        set_label(application, "percentage-design", "%.1f%%", 100. * current_state->energy_now / current_state->energy_full_design);
     else
         clear_label(application, "percentage-design");
 
-    GbbPowerStatistics *statistics = application->statistics;
-    if (statistics && statistics->power >= 0)
-        set_label(application, "power-average", "%.1fW", statistics->power);
+    GbbPowerStatistics *interval_statistics = NULL;
+    if (application->previous_state)
+        interval_statistics = gbb_power_statistics_compute(application->previous_state, current_state);
+
+    GbbPowerStatistics *overall_statistics = NULL;
+    if (application->run) {
+        const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
+        if (start_state)
+            overall_statistics = gbb_power_statistics_compute(start_state, current_state);
+    }
+
+    if (overall_statistics && overall_statistics->power >= 0)
+        set_label(application, "power-average", "%.1fW", overall_statistics->power);
     else
         clear_label(application, "power-average");
 
-    const GbbPowerState *last_state = NULL;
-    if (application->run)
-        last_state = gbb_test_run_get_start_state(application->run);
-
-    if (last_state) {
-        GbbPowerStatistics *interval_stats = gbb_power_statistics_compute(last_state, state);
-        set_label(application, "power-instant", "%.1fW", interval_stats->power);
-        gbb_power_statistics_free(interval_stats);
+    if (interval_statistics && interval_statistics->power >= 0) {
+        set_label(application, "power-instant", "%.1fW", interval_statistics->power);
     } else {
         clear_label(application, "power-instant");
     }
 
-    if (statistics && statistics->battery_life >= 0) {
+    if (overall_statistics && overall_statistics->battery_life >= 0) {
         int h, m, s;
-        break_time(statistics->battery_life, &h, &m, &s);
+        break_time(overall_statistics->battery_life, &h, &m, &s);
         set_label(application, "estimated-life", "%d:%02d:%02d", h, m, s);
     } else {
         clear_label(application, "estimated-life");
     }
-    if (statistics && statistics->battery_life_design >= 0) {
+    if (overall_statistics && overall_statistics->battery_life_design >= 0) {
         int h, m, s;
-        break_time(statistics->battery_life_design, &h, &m, &s);
+        break_time(overall_statistics->battery_life_design, &h, &m, &s);
         set_label(application, "estimated-life-design", "%d:%02d:%02d", h, m, s);
     } else {
         clear_label(application, "estimated-life-design");
     }
 
-    gbb_power_state_free(state);
+    if (overall_statistics)
+        gbb_power_statistics_free(overall_statistics);
+    if (interval_statistics)
+        gbb_power_statistics_free(interval_statistics);
 }
 
 static void
@@ -257,26 +265,24 @@ static void
 on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbApplication  *application)
 {
+    if (application->previous_state)
+        gbb_power_state_free(application->previous_state);
+
+    application->previous_state = application->current_state;
+    application->current_state = gbb_power_monitor_get_state(monitor);
+
     if (application->state == STATE_WAITING) {
-        GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-        if (!state->online) {
+        if (!application->current_state->online) {
             gbb_test_run_set_start_time(application->run, time(NULL));
-            gbb_test_run_add(application->run, state);
+            gbb_test_run_add(application->run, application->current_state);
             application_set_state(application, STATE_RUNNING);
             gbb_event_player_play_file(application->player, application->test->loop_file);
-        } else {
-            gbb_power_state_free(state);
         }
     } else if (application->state == STATE_RUNNING) {
-        if (application->statistics)
-            gbb_power_statistics_free(application->statistics);
-
-        GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-        const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
-        application->statistics = gbb_power_statistics_compute(start_state, state);
-        gbb_test_run_add(application->run, state);
-        update_labels(application);
+        gbb_test_run_add(application->run, application->current_state);
     }
+
+    update_labels(application);
 }
 
 static void
@@ -564,8 +570,6 @@ application_start(GbbApplication *application)
         gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), NULL);
         g_clear_object(&application->run);
     }
-
-    g_clear_pointer(&application->statistics, (GFreeFunc)gbb_power_statistics_free);
 
     g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
 
@@ -947,11 +951,12 @@ gbb_application_activate (GApplication *app)
                      G_CALLBACK(on_main_stack_notify_visible_child), application);
     on_main_stack_notify_visible_child(GTK_STACK(main_stack), NULL, application);
 
-    update_labels(application);
-
+    application->current_state = gbb_power_monitor_get_state(application->monitor);
     g_signal_connect(application->monitor, "changed",
                      G_CALLBACK(on_power_monitor_changed),
                      application);
+
+    update_labels(application);
 
     gtk_widget_show(application->window);
 }

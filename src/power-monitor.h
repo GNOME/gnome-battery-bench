@@ -43,7 +43,8 @@ GbbPowerMonitor    *gbb_power_monitor_new        (void);
 GbbPowerState      *gbb_power_monitor_get_state  (GbbPowerMonitor *monitor);
 
 GbbPowerState      *gbb_power_state_new          (void);
-void                gbb_power_state_free         (GbbPowerState   *state);
+GbbPowerState      *gbb_power_state_copy         (const GbbPowerState   *state);
+void                gbb_power_state_free         (GbbPowerState         *state);
 
 double              gbb_power_state_get_percent  (const GbbPowerState   *state);
 

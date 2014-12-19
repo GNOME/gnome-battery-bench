@@ -226,10 +226,10 @@ test_run_add_internal(GbbTestRun    *run,
 }
 
 void
-gbb_test_run_add(GbbTestRun    *run,
-                 GbbPowerState *state)
+gbb_test_run_add(GbbTestRun          *run,
+                 const GbbPowerState *state)
 {
-    test_run_add_internal(run, state);
+    test_run_add_internal(run, gbb_power_state_copy(state));
     g_signal_emit(run, signals[UPDATED], 0);
 }
 

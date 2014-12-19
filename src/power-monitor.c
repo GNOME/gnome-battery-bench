@@ -319,6 +319,12 @@ gbb_power_state_new(void)
     return state;
 }
 
+GbbPowerState *
+gbb_power_state_copy(const GbbPowerState *state)
+{
+    return g_slice_dup(GbbPowerState, state);
+}
+
 static GbbPowerState *
 read_state(GbbPowerMonitor *monitor,
            GbbPowerState   *state)
@@ -412,7 +418,7 @@ gbb_power_monitor_new(void)
 GbbPowerState *
 gbb_power_monitor_get_state (GbbPowerMonitor *monitor)
 {
-    return g_slice_dup(GbbPowerState, &monitor->current_state);
+    return gbb_power_state_copy(&monitor->current_state);
 }
 
 GbbPowerStatistics *
@@ -427,7 +433,7 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
 
     double time_elapsed = (current->time_us - base->time_us) / 1000000.;
 
-    if (current->energy_now >= 0) {
+    if (current->energy_now >= 0 && time_elapsed > 0) {
         double energy_used = base->energy_now - current->energy_now;
         if (energy_used > 0) {
             statistics->power = 3600 * (energy_used) / time_elapsed;
@@ -436,7 +442,7 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
             if (base->energy_full_design >= 0)
                 statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
         }
-    } else if (current->capacity_now >= 0) {
+    } else if (current->capacity_now >= 0 && time_elapsed > 0) {
         double charge_used = base->charge_now - current->charge_now;
         if (charge_used > 0) {
             statistics->current = 3600 * (charge_used) / time_elapsed;
@@ -445,7 +451,7 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
             if (base->charge_full_design >= 0)
                 statistics->battery_life_design = 3600 * base->charge_full_design / statistics->current;
         }
-    } else if (current->capacity_now >= 0) {
+    } else if (current->capacity_now >= 0 && time_elapsed > 0) {
         double capacity_used = base->capacity_now - current->capacity_now;
         if (capacity_used > 0)
             statistics->battery_life = 3600 * time_elapsed / capacity_used;

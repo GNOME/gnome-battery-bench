@@ -2,7 +2,6 @@ Bugs
 ====
 Fix reversed mouse-wheel
 Handle current instead of energy
-Weird numbers on startup
 
 Cleanups
 ========
