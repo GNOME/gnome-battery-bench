@@ -60,7 +60,7 @@ gnome_battery_bench_helper_SOURCES =		\
 	replay-helper.c
 
 ui_files =					\
-	gnome-battery-bench.xml			\
+	application.ui				\
 	power-graphs.ui
 
 EXTRA_DIST += $(ui_files)

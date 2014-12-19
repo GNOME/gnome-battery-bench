@@ -826,9 +826,6 @@
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
           </object>
-          <packing>
-            <property name="position">1</property>
-          </packing>
         </child>
         <child>
           <object class="GtkButton" id="delete-button">
@@ -843,9 +840,6 @@
               </object>
             </child>
           </object>
-          <packing>
-            <property name="position">2</property>
-          </packing>
         </child>
       </object>
     </child>

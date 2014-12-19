@@ -869,7 +869,7 @@ gbb_application_activate (GApplication *app)
     application->builder = gtk_builder_new();
     GError *error = NULL;
     gtk_builder_add_from_resource(application->builder,
-                                  "/org/gnome/BatteryBench/gnome-battery-bench.xml",
+                                  "/org/gnome/BatteryBench/application.ui",
                                   &error);
     if (error)
         die("Cannot load user interface: %s\n", error->message);
