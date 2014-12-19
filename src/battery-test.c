@@ -19,7 +19,7 @@ load_test(GFile *filename)
 
     GKeyFile *key_file = g_key_file_new();
 
-    BatteryTest *test = g_slice_new0(BatteryTest);
+    GbbBatteryTest *test = g_slice_new0(GbbBatteryTest);
     test->path = g_file_get_path(filename);
 
     char *base_path = g_strndup(test->path, strlen(test->path) - strlen(".batterytest"));
@@ -76,7 +76,7 @@ out:
         g_free(test->prologue_file);
         g_free(test->loop_file);
         g_free(test->epilogue_file);
-        g_slice_free(BatteryTest, test);
+        g_slice_free(GbbBatteryTest, test);
     }
 
     g_free(base_path);
@@ -134,8 +134,8 @@ out:
 static int
 compare_tests(gconstpointer a, gconstpointer b)
 {
-    const BatteryTest *test_a = a;
-    const BatteryTest *test_b = b;
+    const GbbBatteryTest *test_a = a;
+    const GbbBatteryTest *test_b = b;
 
     return g_utf8_collate(test_a->name, test_b->name);
 }
@@ -161,8 +161,8 @@ tests_init(void)
     all_tests = g_list_sort(all_tests, compare_tests);
 }
 
-BatteryTest *
-battery_test_get_for_id(const char *id)
+GbbBatteryTest *
+gbb_battery_test_get_for_id(const char *id)
 {
     tests_init();
 
@@ -170,7 +170,7 @@ battery_test_get_for_id(const char *id)
 }
 
 GList *
-battery_test_list_all(void)
+gbb_battery_test_list_all(void)
 {
     tests_init();
 

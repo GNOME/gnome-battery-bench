@@ -23,7 +23,7 @@ AM_PROG_CC_C_O
 
 PKG_CHECK_MODULES([HELPER], [$base_packages polkit-gobject-1])
 PKG_CHECK_MODULES([COMMANDLINE], [$base_packages $x_packages])
-PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0])
+PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0 json-glib-1.0])
 
 GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
 AC_SUBST(GLIB_COMPILE_RESOURCES)

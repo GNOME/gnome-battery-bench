@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/org/gnome/battery-bench">
+  <gresource prefix="/org/gnome/BatteryBench">
     <file>gnome-battery-bench.xml</file>
+    <file>power-graphs.ui</file>
   </gresource>
 </gresources>

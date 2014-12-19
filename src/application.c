@@ -1,7 +1,10 @@
 /* -*- mode: C; c-file-style: "stroustrup"; indent-tabs-mode: nil; -*- */
 
+#include <config.h>
+
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <gtk/gtk.h>
 
@@ -9,11 +12,12 @@
 #include <X11/keysymdef.h>
 
 #include "application.h"
-#include "event-log.h"
 #include "battery-test.h"
 #include "remote-player.h"
+#include "power-graphs.h"
 #include "power-monitor.h"
 #include "system-state.h"
+#include "test-run.h"
 #include "util.h"
 
 typedef enum {
@@ -36,40 +40,34 @@ struct _GbbApplication {
     GbbEventPlayer *player;
     GbbSystemState *system_state;
 
+    GFile *log_folder;
+
     GbbPowerState *start_state;
-    GQueue *history;
     GbbPowerStatistics *statistics;
 
     GtkBuilder *builder;
     GtkWidget *window;
+
     GtkWidget *headerbar;
+    GtkWidget *start_button;
+    GtkWidget *delete_button;
+
     GtkWidget *test_combo;
     GtkWidget *duration_combo;
     GtkWidget *backlight_combo;
-    GtkWidget *start_button;
-    GtkWidget *power_area;
-    GtkWidget *percentage_area;
-    GtkWidget *life_area;
+
+    GtkWidget *log_view;
+    GtkListStore *log_model;
+
+    GtkWidget *test_graphs;
+    GtkWidget *log_graphs;
 
     State state;
     gboolean stop_requested;
     gboolean exit_requested;
-    BatteryTest *test;
-    double loop_duration;
 
-    DurationType duration_type;
-    union {
-        double seconds;
-        double percent;
-    } duration;
-
-    int backlight_level;
-
-    double max_power;
-    double graph_max_power;
-    double max_life;
-    double graph_max_life;
-    double graph_max_time;
+    GbbBatteryTest *test;
+    GbbTestRun *run;
 };
 
 struct _GbbApplicationClass {
@@ -140,7 +138,8 @@ update_labels(GbbApplication *application)
     case STATE_RUNNING:
     {
         int h, m, s;
-        break_time((state->time_us - application->start_state->time_us) / 1000000, &h, &m, &s);
+        const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
+        break_time((state->time_us - start_state->time_us) / 1000000, &h, &m, &s);
         title = g_strdup_printf("GNOME Battery Bench - running (%d:%02d:%02d)", h, m, s);
         break;
     }
@@ -185,15 +184,14 @@ update_labels(GbbApplication *application)
     else
         clear_label(application, "power-average");
 
-    if (application->history && application->history->tail) {
-        GbbPowerState *state = application->history->tail->data;
-        GbbPowerState *last_state = application->history->tail->prev ? application->history->tail->prev->data : application->start_state;
-        GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                                  last_state, state);
+    const GbbPowerState *last_state = NULL;
+    if (application->run)
+        last_state = gbb_test_run_get_start_state(application->run);
+
+    if (last_state) {
+        GbbPowerStatistics *interval_stats = gbb_power_statistics_compute(last_state, state);
         set_label(application, "power-instant", "%.1fW", interval_stats->power);
         gbb_power_statistics_free(interval_stats);
-    } else if (statistics && statistics->power >= 0) {
-        set_label(application, "power-instant", "%.1fW", statistics->power);
     } else {
         clear_label(application, "power-instant");
     }
@@ -214,149 +212,6 @@ update_labels(GbbApplication *application)
     }
 
     gbb_power_state_free(state);
-}
-
-static double
-round_up_time(double seconds)
-{
-    if (seconds <= 5 * 60)
-        return 5 * 60;
-    else if (seconds <= 6 * 60)
-        return 6 * 60;
-    else if (seconds <= 10 * 60)
-        return 10 * 60;
-    else if (seconds <= 12 * 60)
-        return 12 * 60;
-    else if (seconds <= 15 * 60)
-        return 15 * 60;
-    else if (seconds <= 20 * 60)
-        return 20 * 60;
-    else if (seconds <= 30 * 60)
-        return 30 * 60;
-    else if (seconds <= 40 * 60)
-        return 40 * 60;
-    else if (seconds <= 60 * 60)
-        return 60 * 60;
-    else if (seconds <= 2 * 60 * 60)
-        return 2 * 60 * 60;
-    else if (seconds <= 5 * 60 * 60)
-        return 5 * 60 * 60;
-    else if (seconds <= 10 * 60 * 60)
-        return 10 * 60 * 60;
-    else if (seconds <= 15 * 60 * 60)
-        return 15 * 60 * 60;
-    else if (seconds <= 24 * 60 * 60)
-        return 24 * 60 * 60;
-    else
-        return 48 * 60 * 60;
-}
-
-static void
-redraw_graphs(GbbApplication *application)
-{
-    gtk_widget_queue_draw(application->power_area);
-    gtk_widget_queue_draw(application->percentage_area);
-    gtk_widget_queue_draw(application->life_area);
-}
-
-static void
-update_chart_ranges(GbbApplication *application)
-{
-    double max_power = application->max_power > 0 ? application->max_power : 10;
-    double max_life = application->max_life > 0 ? application->max_life : 5 * 60 * 60;
-
-    if (max_power <= 5)
-        application->graph_max_power = 5;
-    else if (max_power <= 10)
-        application->graph_max_power = 10;
-    else if (max_power <= 15)
-        application->graph_max_power = 15;
-    else if (max_power <= 20)
-        application->graph_max_power = 20;
-    else if (max_power <= 30)
-        application->graph_max_power = 30;
-    else if (max_power <= 50)
-        application->graph_max_power = 50;
-    else
-        application->graph_max_power = 100;
-
-    set_label(application, "power-max", "%.0fW", application->graph_max_power);
-
-    application->graph_max_life = round_up_time(max_life);
-
-    if (application->graph_max_life >= 60 * 60)
-        set_label(application, "life-max", "%.0fh", application->graph_max_life / (60 * 60));
-    else
-        set_label(application, "life-max", "%.0fm", application->graph_max_life / (60));
-
-    switch (application->duration_type) {
-    case DURATION_TIME:
-        {
-            if (application->test)
-                application->graph_max_time = round_up_time(application->duration.seconds + application->loop_duration);
-            else
-                application->graph_max_time = application->duration.seconds;
-        }
-        break;
-    case DURATION_PERCENT:
-        if (application->statistics)
-            application->graph_max_time = round_up_time(application->statistics->battery_life);
-        else
-            application->graph_max_time = round_up_time(5 * 60 * 60);
-        break;
-    }
-
-    if (application->graph_max_time >= 60 * 60)
-        set_label(application, "time-max", "%.0f:00", application->graph_max_time / (60 * 60));
-    else
-        set_label(application, "time-max", "0:%02.0f", application->graph_max_time / (60));
-
-    redraw_graphs(application);
-}
-
-static void
-add_to_history(GbbApplication *application,
-               GbbPowerState  *state)
-{
-    GbbPowerState *last_state = application->history->tail ? application->history->tail->data : application->start_state;
-    gboolean use_this_state = FALSE;
-
-    switch (application->duration_type) {
-    case DURATION_TIME:
-        if (state->time_us - last_state->time_us > application->duration.seconds * 1000000. / 100.)
-            use_this_state = TRUE;
-        break;
-    case DURATION_PERCENT:
-        {
-            double start_percent = gbb_power_state_get_percent(application->start_state);
-            double last_percent = gbb_power_state_get_percent(last_state);
-            double current_percent = gbb_power_state_get_percent(state);
-
-            if ((last_percent - current_percent) / (start_percent - application->duration.percent) > 0.005)
-                use_this_state = TRUE;
-            break;
-        }
-    }
-
-    if (!use_this_state) {
-        gbb_power_state_free(state);
-        return;
-    }
-
-    g_queue_push_tail(application->history, state);
-
-    GbbPowerStatistics *overall_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                             application->start_state, state);
-    application->max_life = MAX(overall_stats->battery_life, application->max_life);
-
-    GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                              last_state, state);
-    application->max_power = MAX(interval_stats->power, application->max_power);
-
-    gbb_power_statistics_free(interval_stats);
-    gbb_power_statistics_free(overall_stats);
-
-    update_chart_ranges(application);
 }
 
 static void
@@ -396,7 +251,6 @@ application_set_state(GbbApplication *application,
     application->state = state;
     update_sensitive(application);
     update_labels(application);
-    redraw_graphs(application);
 }
 
 static void
@@ -406,7 +260,8 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
     if (application->state == STATE_WAITING) {
         GbbPowerState *state = gbb_power_monitor_get_state(monitor);
         if (!state->online) {
-            application->start_state = state;
+            gbb_test_run_set_start_time(application->run, time(NULL));
+            gbb_test_run_add(application->run, state);
             application_set_state(application, STATE_RUNNING);
             gbb_event_player_play_file(application->player, application->test->loop_file);
         } else {
@@ -417,8 +272,9 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
             gbb_power_statistics_free(application->statistics);
 
         GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-        application->statistics = gbb_power_monitor_compute_statistics(monitor, application->start_state, state);
-        add_to_history(application, state);
+        const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
+        application->statistics = gbb_power_statistics_compute(start_state, state);
+        gbb_test_run_add(application->run, state);
         update_labels(application);
     }
 }
@@ -538,10 +394,120 @@ remove_stop_shortcut(GbbApplication *application)
     gdk_window_remove_filter(root, on_root_event, application);
 }
 
+enum {
+    COLUMN_RUN,
+    COLUMN_NAME,
+    COLUMN_DURATION,
+    COLUMN_DATE
+};
+
+static char *
+make_duration_string(GbbTestRun *run)
+{
+    switch (gbb_test_run_get_duration_type(run)) {
+    case GBB_DURATION_TIME:
+        return g_strdup_printf("%.0f Minutes", gbb_test_run_get_duration_time(run) / 60);
+    case GBB_DURATION_PERCENT:
+        return g_strdup_printf("Until %.0f%% battery", gbb_test_run_get_duration_percent(run));
+    default:
+        g_assert_not_reached();
+    }
+}
+
+static char *
+make_date_string(GbbTestRun *run)
+{
+    GDateTime *start = g_date_time_new_from_unix_local(gbb_test_run_get_start_time(run));
+    GDateTime *now = g_date_time_new_now_local();
+
+    char *result;
+
+    gint64 difference = g_date_time_difference(now, start);
+    if (difference < G_TIME_SPAN_DAY)
+        result = g_date_time_format(start, "%H:%M");
+    else if (difference < 7 * G_TIME_SPAN_DAY &&
+             g_date_time_get_day_of_week(now) != g_date_time_get_day_of_week(start))
+        result = g_date_time_format(start, "%a %H:%M");
+    else if (g_date_time_get_year(now) == g_date_time_get_year(start))
+        result = g_date_time_format(start, "%m-%d %H:%M");
+    else
+        result = g_date_time_format(start, "%Y-%m-%d %H:%M");
+
+    g_date_time_unref(start);
+    g_date_time_unref(now);
+
+    return result;
+}
+
+static void
+add_run_to_logs(GbbApplication *application,
+                GbbTestRun     *run)
+{
+    GtkTreeIter iter;
+
+    char *duration = make_duration_string(run);
+    char *date = make_date_string(run);
+
+    gtk_list_store_append(application->log_model, &iter);
+    gtk_list_store_set(application->log_model, &iter,
+                       COLUMN_RUN, run,
+                       COLUMN_DURATION, duration,
+                       COLUMN_DATE, date,
+                       COLUMN_NAME, gbb_test_run_get_name(run),
+                       -1);
+    g_free(duration);
+    g_free(date);
+
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(application->log_view));
+    if (!gtk_tree_selection_get_selected(selection, NULL, NULL))
+        gtk_tree_selection_select_iter(selection, &iter);
+}
+
+static void
+write_run_to_disk(GbbApplication *application,
+                  GbbTestRun     *run)
+{
+    GError *error = NULL;
+
+    gint64 start_time = gbb_test_run_get_start_time(application->run);
+
+    if (!g_file_query_exists(application->log_folder, NULL)) {
+        if (!g_file_make_directory_with_parents(application->log_folder, NULL, &error)) {
+            g_warning("Cannot create log directory: %s\n", error->message);
+            g_clear_error(&error);
+            return;
+        }
+    }
+
+    GDateTime *start_datetime = g_date_time_new_from_unix_utc(start_time);
+    char *start_string = g_date_time_format(start_datetime, "%F-%T");
+    char *file_name = g_strdup_printf("%s-%s.json", start_string, application->test->id);
+    GFile *file = g_file_get_child(application->log_folder, file_name);
+    g_free(file_name);
+    g_free(start_string);
+    g_date_time_unref(start_datetime);
+
+    char *file_path = g_file_get_path(file);
+    if (!gbb_test_run_write_to_file(application->run, file_path, &error)) {
+        g_warning("Can't write test run to disk: %s\n", error->message);
+        g_clear_error(&error);
+    }
+    g_free(file_path);
+    g_object_unref(file);
+}
+
 static void
 application_set_stopped(GbbApplication *application)
 {
     application_set_state(application, STATE_STOPPED);
+
+    const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
+    const GbbPowerState *last_state = gbb_test_run_get_last_state(application->run);
+    if (last_state != start_state) {
+        write_run_to_disk(application, application->run);
+        add_run_to_logs(application, application->run);
+    }
+
     application->test = NULL;
 
     remove_stop_shortcut(application);
@@ -577,15 +543,7 @@ on_player_finished(GbbEventPlayer *player,
             application_stop(application);
         }
     } else if (application->state == STATE_RUNNING) {
-        GbbPowerState *last_state = application->history->tail ? application->history->tail->data : application->start_state;
-        gboolean done;
-
-        if (application->duration_type == DURATION_TIME)
-            done = (last_state->time_us - application->start_state->time_us) / 1000000. > application->duration.seconds;
-        else
-            done = gbb_power_state_get_percent(last_state) < application->duration.percent;
-
-        if (done)
+        if (gbb_test_run_is_done(application->run))
             application_set_epilogue(application);
         else
             gbb_event_player_play_file(player, application->test->loop_file);
@@ -602,54 +560,46 @@ application_start(GbbApplication *application)
     if (application->state != STATE_STOPPED)
         return;
 
-    if (application->history) {
-        g_queue_free_full(application->history, (GFreeFunc)gbb_power_state_free);
-        application->history = NULL;
+    if (application->run) {
+        gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), NULL);
+        g_clear_object(&application->run);
     }
 
-    g_clear_pointer(&application->start_state, (GFreeFunc)gbb_power_state_free);
     g_clear_pointer(&application->statistics, (GFreeFunc)gbb_power_statistics_free);
 
-    application->history = g_queue_new();
-    application->max_power = 0;
-    application->max_life = 0;
     g_object_set(G_OBJECT(application->start_button), "label", "Stop", NULL);
 
     const char *test_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->test_combo));
-    application->test = battery_test_get_for_id(test_id);
+    application->test = gbb_battery_test_get_for_id(test_id);
 
-    GFile *loop_file = g_file_new_for_path(application->test->loop_file);
-    GError *error = NULL;
-    application->loop_duration = gbb_event_log_duration(loop_file, NULL, &error) / 1000.;
-    if (error)
-        die("Can't get duration of .loop file: %s", error->message);
-    g_object_unref(loop_file);
+    application->run = gbb_test_run_new(application->test);
 
     const char *duration_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->duration_combo));
     if (strcmp(duration_id, "minutes-5") == 0) {
-        application->duration_type = DURATION_TIME;
-        application->duration.seconds = 5 * 60;
+        gbb_test_run_set_duration_time(application->run, 5 * 60);
     } else if (strcmp(duration_id, "minutes-10") == 0) {
-        application->duration_type = DURATION_TIME;
-        application->duration.seconds = 10 * 60;
+        gbb_test_run_set_duration_time(application->run, 10 * 60);
     } else if (strcmp(duration_id, "minutes-30") == 0) {
-        application->duration_type = DURATION_TIME;
-        application->duration.seconds = 30 * 60;
+        gbb_test_run_set_duration_time(application->run, 30 * 60);
     } else if (strcmp(duration_id, "until-percent-5") == 0) {
-        application->duration_type = DURATION_PERCENT;
-        application->duration.percent = 5;
+        gbb_test_run_set_duration_percent(application->run, 5);
     }
 
     const char *backlight_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(application->backlight_combo));
-    application->backlight_level = atoi(backlight_id);
+    int screen_brightness = atoi(backlight_id);
+
+    gbb_test_run_set_screen_brightness(application->run, screen_brightness);
+
     gbb_system_state_save(application->system_state);
     gbb_system_state_set_brightnesses(application->system_state,
-                                      application->backlight_level,
+                                      screen_brightness,
                                       0);
+
+    gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), application->run);
 
     setup_stop_shortcut(application);
 
-    update_chart_ranges(application);
+    update_labels(application);
 
     if (application->test->prologue_file) {
         gbb_event_player_play_file(application->player, application->test->prologue_file);
@@ -676,6 +626,16 @@ application_stop(GbbApplication *application)
 }
 
 static void
+on_main_stack_notify_visible_child(GtkStack       *stack,
+                                   GParamSpec     *pspec,
+                                   GbbApplication *application)
+{
+    const gchar *visible = gtk_stack_get_visible_child_name(stack);
+    gtk_widget_set_visible(application->start_button, g_strcmp0(visible, "test") == 0);
+    gtk_widget_set_visible(application->delete_button, g_strcmp0(visible, "logs") == 0);
+}
+
+static void
 on_start_button_clicked(GtkWidget      *button,
                         GbbApplication *application)
 {
@@ -689,139 +649,56 @@ on_start_button_clicked(GtkWidget      *button,
 }
 
 static void
-on_chart_area_draw (GtkWidget      *chart_area,
-                    cairo_t        *cr,
-                    GbbApplication *application)
+on_delete_button_clicked(GtkWidget      *button,
+                        GbbApplication *application)
 {
-    cairo_rectangle_int_t allocation;
+    GtkTreeModel *model;
+    GtkTreeIter iter;
 
-    cairo_set_source_rgb(cr, 1, 1, 1);
-    cairo_paint(cr);
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(application->log_view));
+    if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+        GbbTestRun *run;
+        const char *name;
+        const char *date;
+        gtk_tree_model_get(model, &iter,
+                           COLUMN_RUN, &run,
+                           COLUMN_NAME, &name,
+                           COLUMN_DATE, &date,
+                           -1);
 
-    gtk_widget_get_allocation(chart_area, &allocation);
-    cairo_rectangle(cr,
-                    0.5, 0.5,
-                    allocation.width - 1, allocation.height - 1);
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_set_line_width(cr, 1.0);
-    cairo_stroke(cr);
+        GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(application->window),
+                                                   GTK_DIALOG_MODAL,
+                                                   GTK_MESSAGE_QUESTION,
+                                                   GTK_BUTTONS_NONE,
+                                                   "Delete log?");
 
-    int n_y_ticks = 5;
-    if (chart_area == application->power_area) {
-        if ((int)(0.5 + application->graph_max_power) == 30)
-            n_y_ticks = 6;
-    } else if (chart_area == application->life_area) {
-        int graph_max_life = (int)(0.5 + application->graph_max_life);
-        switch (graph_max_life) {
-        case 6 * 60:
-        case 12 * 60:
-        case 60 * 60:
-        case 2 * 60 * 60:
-        case 24 * 60 * 60:
-        case 48 * 60 * 60:
-            n_y_ticks = 6;
-            break;
-        }
-    }
+        gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+                                                 "Permanently delete log of test '%s' from %s?",
+                                                 name, date);
 
-    int graph_max_time = (int)(0.5 + application->graph_max_time);
-    int n_x_ticks;
-    switch (graph_max_time) {
-    case 15 * 60:
-    case 15 * 60 * 60:
-        n_x_ticks = 5;
-        break;
-    case 60 * 60:
-        n_x_ticks = 6;
-        break;
-    case 5 * 60:
-    case 10 * 60:
-    case 20 * 60:
-    case 30 * 60:
-    case 40 * 60:
-    case 5 * 60 * 60:
-    case 10 * 60 * 60:
-        n_x_ticks = 10;
-        break;
-    case 6 * 60:
-    case 12 * 60:
-    case 2 * 60 * 60:
-    case 24 * 60 * 60:
-    case 48 * 60 * 60:
-        n_x_ticks = 12;
-        break;
-    default:
-        n_x_ticks = 10;
-        break;
-    }
+        gtk_dialog_add_buttons(GTK_DIALOG(dialog),
+                               "Cancel", GTK_RESPONSE_CANCEL,
+                               "Delete", GTK_RESPONSE_OK,
+                               NULL);
+        gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
 
-    int i;
-    for (i = 1; i < n_y_ticks; i++) {
-        int y = (int)(0.5 + i * (double)allocation.height / n_y_ticks) - 0.5;
-        cairo_move_to(cr, 1.0, y);
-        cairo_line_to(cr, allocation.width - 1.0, y);
-    }
+        int response = gtk_dialog_run(GTK_DIALOG(dialog));
+        if (response == GTK_RESPONSE_OK) {
+            const char *filename = gbb_test_run_get_filename(run);
+            GFile *file = g_file_new_for_path(filename);
+            GError *error = NULL;
 
-    for (i = 1; i < n_x_ticks; i++) {
-        int x = (int)(0.5 + i * (double)allocation.width / n_x_ticks) - 0.5;
-        cairo_move_to(cr, x, 1.0);
-        cairo_line_to(cr, x, allocation.height - 1.0);
-    }
-
-    cairo_set_source_rgb(cr, 0.8, 0.8, 0.8);
-    cairo_stroke(cr);
-
-    if (application->test && chart_area == application->percentage_area && application->duration_type == DURATION_PERCENT) {
-        double y = (1 - application->duration.percent / 100.) * allocation.height;
-        cairo_move_to(cr, 1.0, y);
-        cairo_line_to(cr, allocation.width - 1.0, y);
-        cairo_set_source_rgb(cr, 1.0, 0.5, 0.3);
-        cairo_stroke(cr);
-    } else if (application->test && application->duration_type == DURATION_TIME) {
-        double x = (application->duration.seconds / application->graph_max_time) * allocation.width;
-        cairo_move_to(cr, x, 1.0);
-        cairo_line_to(cr, x, allocation.width - 1.0);
-        cairo_set_source_rgb(cr, 1.0, 0.5, 0.3);
-        cairo_stroke(cr);
-    }
-
-    if (!application->history || !application->history->head)
-        return;
-
-    GbbPowerState *start_state = application->start_state;
-    GbbPowerState *last_state = application->start_state;
-    GList *l;
-    for (l = application->history->head; l; l = l->next) {
-        GbbPowerState *state = l->data;
-        double v;
-
-        if (chart_area == application->power_area) {
-            GbbPowerStatistics *interval_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                                      last_state, state);
-            v = interval_stats->power / application->graph_max_power;
-            gbb_power_statistics_free(interval_stats);
-        } else if (chart_area == application->percentage_area) {
-            v = gbb_power_state_get_percent(state) / 100;
-        } else {
-            GbbPowerStatistics *overall_stats = gbb_power_monitor_compute_statistics(application->monitor,
-                                                                                     start_state, state);
-            v = overall_stats->battery_life / application->graph_max_life;
-            gbb_power_statistics_free(overall_stats);
+            if (g_file_delete(file, NULL, &error)) {
+                if (gtk_list_store_remove(application->log_model, &iter))
+                    gtk_tree_selection_select_iter(selection, &iter);
+            } else {
+                g_warning("Failed to delete log: %s\n", error->message);
+                g_clear_error(&error);
+            }
         }
 
-        double x = allocation.width * (state->time_us - start_state->time_us) / 1000000. / application->graph_max_time;
-        double y = (1 - v) * allocation.height;
-
-        if (l == application->history->head)
-            cairo_move_to(cr, x, y);
-        else
-            cairo_line_to(cr, x, y);
-
-        last_state = state;
+        gtk_widget_destroy(dialog);
     }
-
-    cairo_set_source_rgb(cr, 0, 0, 0.8);
-    cairo_stroke(cr);
 }
 
 static gboolean
@@ -839,6 +716,143 @@ on_delete_event(GtkWidget      *window,
 }
 
 static void
+fill_log_from_run(GbbApplication *application,
+                  GbbTestRun     *run)
+{
+    set_label(application, "test-log", "%s", gbb_test_run_get_name(run));
+    char *duration = make_duration_string(run);
+    set_label(application, "duration-log", "%s", duration);
+    g_free(duration);
+    set_label(application, "backlight-log", "%d%%",
+              gbb_test_run_get_screen_brightness(run));
+    const GbbPowerState *start_state = gbb_test_run_get_start_state(run);
+    const GbbPowerState *last_state = gbb_test_run_get_last_state(run);
+    if (last_state != start_state) {
+        GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, last_state);
+        if (statistics->power >= 0)
+            set_label(application, "power-average-log", "%.1fW", statistics->power);
+        else
+            clear_label(application, "power-average-log");
+
+        if (last_state->energy_full >= 0)
+            set_label(application, "energy-full-log", "%.1fWH", last_state->energy_full);
+        else
+            clear_label(application, "energy-full-log");
+
+        if (last_state->energy_full_design >= 0)
+            set_label(application, "energy-full-design-log", "%.1fWH", last_state->energy_full);
+        else
+            clear_label(application, "energy-full-design-log");
+
+        if (statistics->battery_life >= 0) {
+            int h, m, s;
+            break_time(statistics->battery_life, &h, &m, &s);
+            set_label(application, "estimated-life-log", "%d:%02d:%02d", h, m, s);
+        } else {
+            clear_label(application, "estimated-life-log");
+        }
+
+        if (statistics->battery_life_design >= 0) {
+            int h, m, s;
+            break_time(statistics->battery_life_design, &h, &m, &s);
+            set_label(application, "estimated-life-design-log", "%d:%02d:%02d", h, m, s);
+        } else {
+            clear_label(application, "estimated-life-design-log");
+        }
+    }
+
+    gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->log_graphs), run);
+}
+
+static int
+compare_runs(gconstpointer a,
+             gconstpointer b)
+{
+    gint64 time_a = gbb_test_run_get_start_time((GbbTestRun *)a);
+    gint64 time_b = gbb_test_run_get_start_time((GbbTestRun *)b);
+
+    return time_a < time_b ? -1 : (time_a == time_b ? 0 : 1);
+}
+
+static void
+read_logs(GbbApplication *application)
+{
+    GError *error = NULL;
+    GFileEnumerator *enumerator;
+    GList *runs = NULL;
+
+    enumerator = g_file_enumerate_children (application->log_folder,
+                                            "standard::name",
+                                            G_FILE_QUERY_INFO_NONE,
+                                            NULL, &error);
+    if (!enumerator)
+        goto out;
+
+    while (error == NULL) {
+        GFileInfo *info = g_file_enumerator_next_file (enumerator, NULL, &error);
+        GFile *child = NULL;
+        if (error != NULL)
+            goto out;
+        else if (!info)
+            break;
+
+        const char *name = g_file_info_get_name (info);
+        if (!g_str_has_suffix(name, ".json"))
+            goto next;
+
+        child = g_file_enumerator_get_child (enumerator, info);
+        char *child_path = g_file_get_path(child);
+        GbbTestRun *run = gbb_test_run_new_from_file(child_path, &error);
+        if (run) {
+            runs = g_list_prepend(runs, run);
+        } else {
+            g_warning("Can't read test log '%s': %s", child_path, error->message);
+            g_clear_error(&error);
+        }
+
+    next:
+        g_clear_object (&child);
+        g_clear_object (&info);
+    }
+
+out:
+    if (error != NULL) {
+        g_warning("Error reading logs: %s", error->message);
+        g_clear_error(&error);
+    }
+
+    g_clear_object (&enumerator);
+
+    runs = g_list_sort(runs, compare_runs);
+
+    GList *l;
+    for (l = runs; l; l = l->next) {
+        add_run_to_logs(application, l->data);
+        g_object_unref(l->data);
+    }
+
+    g_list_free(runs);
+}
+
+static void
+on_log_selection_changed (GtkTreeSelection *selection,
+                          GbbApplication   *application)
+{
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+
+    gboolean have_selected = gtk_tree_selection_get_selected(selection, &model, &iter);
+
+    if (have_selected) {
+        GbbTestRun *run;
+        gtk_tree_model_get(model, &iter, 0, &run, -1);
+        fill_log_from_run(application, run);
+    }
+
+    gtk_widget_set_sensitive(application->delete_button, have_selected);
+}
+
+static void
 gbb_application_activate (GApplication *app)
 {
     GbbApplication *application = GBB_APPLICATION (app);
@@ -851,7 +865,7 @@ gbb_application_activate (GApplication *app)
     application->builder = gtk_builder_new();
     GError *error = NULL;
     gtk_builder_add_from_resource(application->builder,
-                                  "/org/gnome/battery-bench/gnome-battery-bench.xml",
+                                  "/org/gnome/BatteryBench/gnome-battery-bench.xml",
                                   &error);
     if (error)
         die("Cannot load user interface: %s\n", error->message);
@@ -865,38 +879,73 @@ gbb_application_activate (GApplication *app)
     application->headerbar = GTK_WIDGET(gtk_builder_get_object(application->builder, "headerbar"));
 
     application->test_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "test-combo"));
-    GList *tests = battery_test_list_all();
+    GList *tests = gbb_battery_test_list_all();
     GList *l;
     for (l = tests; l; l = l->next) {
-        BatteryTest *test = l->data;
+        GbbBatteryTest *test = l->data;
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(application->test_combo),
                                   test->id, test->name);
     }
-    gtk_combo_box_set_active_id(GTK_COMBO_BOX(application->test_combo), "lightduty");
+    gtk_combo_box_set_active_id(GTK_COMBO_BOX(application->test_combo), "idle");
 
     application->duration_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "duration-combo"));
     application->backlight_combo = GTK_WIDGET(gtk_builder_get_object(application->builder, "backlight-combo"));
 
     application->start_button = GTK_WIDGET(gtk_builder_get_object(application->builder, "start-button"));
+    application->delete_button = GTK_WIDGET(gtk_builder_get_object(application->builder, "delete-button"));
+
+    GtkWidget *test_graphs_parent = GTK_WIDGET(gtk_builder_get_object(application->builder, "test-graphs-parent"));
+    application->test_graphs = gbb_power_graphs_new();
+    gtk_box_pack_start(GTK_BOX(test_graphs_parent), application->test_graphs, TRUE, TRUE, 0);
+
+    GtkWidget *log_graphs_parent = GTK_WIDGET(gtk_builder_get_object(application->builder, "log-graphs-parent"));
+    application->log_graphs = gbb_power_graphs_new();
+    gtk_box_pack_start(GTK_BOX(log_graphs_parent), application->log_graphs, TRUE, TRUE, 0);
 
     gtk_widget_set_sensitive(application->start_button,
                              gbb_event_player_is_ready(application->player));
 
     g_signal_connect(application->start_button, "clicked",
                      G_CALLBACK(on_start_button_clicked), application);
+    g_signal_connect(application->delete_button, "clicked",
+                     G_CALLBACK(on_delete_button_clicked), application);
 
-    application->power_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "power-area"));
-    g_signal_connect(application->power_area, "draw",
-                     G_CALLBACK(on_chart_area_draw),
-                     application);
-    application->percentage_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "percentage-area"));
-    g_signal_connect(application->percentage_area, "draw",
-                     G_CALLBACK(on_chart_area_draw),
-                     application);
-    application->life_area = GTK_WIDGET(gtk_builder_get_object(application->builder, "life-area"));
-    g_signal_connect(application->life_area, "draw",
-                     G_CALLBACK(on_chart_area_draw),
-                     application);
+    /****************************************/
+
+    application->log_view = GTK_WIDGET(gtk_builder_get_object(application->builder, "log-view"));
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(application->log_view));
+    gtk_tree_selection_set_mode(selection, GTK_SELECTION_BROWSE);
+
+    g_signal_connect(selection, "changed",
+                     G_CALLBACK(on_log_selection_changed), application);
+    on_log_selection_changed(selection, application);
+
+    GtkTreeViewColumn *column;
+    GtkCellRenderer *renderer;
+
+    renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes("Date", renderer, "text", COLUMN_DATE, NULL);
+    gtk_tree_view_column_set_expand(column, TRUE);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(application->log_view), column);
+
+    renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes("Name", renderer, "text", COLUMN_NAME, NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(application->log_view), column);
+
+    renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes("Duration", renderer, "text", COLUMN_DURATION, NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(application->log_view), column);
+
+    application->log_model = GTK_LIST_STORE(gtk_builder_get_object(application->builder, "log-model"));
+
+    read_logs(application);
+
+    /****************************************/
+
+    GtkWidget *main_stack = GTK_WIDGET(gtk_builder_get_object(application->builder, "main-stack"));
+    g_signal_connect(main_stack, "notify::visible-child",
+                     G_CALLBACK(on_main_stack_notify_visible_child), application);
+    on_main_stack_notify_visible_child(GTK_STACK(main_stack), NULL, application);
 
     update_labels(application);
 
@@ -923,9 +972,10 @@ gbb_application_init(GbbApplication *application)
 {
     application->monitor = gbb_power_monitor_new();
     application->system_state = gbb_system_state_new();
-    application->graph_max_power = 10;
-    application->graph_max_time = 60 * 60;
-    application->graph_max_life = 5 * 60 * 60;
+
+    char *folder_path = g_build_filename(g_get_user_data_dir(), PACKAGE_NAME, "logs", NULL);
+    application->log_folder = g_file_new_for_path(folder_path);
+    g_free(folder_path);
 
     application->player = GBB_EVENT_PLAYER(gbb_remote_player_new("GNOME Battery Bench"));
     g_signal_connect(application->player, "ready",

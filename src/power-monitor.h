@@ -41,13 +41,14 @@ GType               gbb_power_monitor_get_type(void);
 GbbPowerMonitor    *gbb_power_monitor_new        (void);
 
 GbbPowerState      *gbb_power_monitor_get_state  (GbbPowerMonitor *monitor);
+
+GbbPowerState      *gbb_power_state_new          (void);
 void                gbb_power_state_free         (GbbPowerState   *state);
 
-double              gbb_power_state_get_percent  (GbbPowerState   *state);
+double              gbb_power_state_get_percent  (const GbbPowerState   *state);
 
-GbbPowerStatistics *gbb_power_monitor_compute_statistics (GbbPowerMonitor *monitor,
-                                                          GbbPowerState   *base,
-                                                          GbbPowerState   *current);
+GbbPowerStatistics *gbb_power_statistics_compute (const GbbPowerState   *base,
+                                                  const GbbPowerState   *current);
 void                gbb_power_statistics_free    (GbbPowerStatistics *statistics);
 
 #endif /*__POWER_MONITOR_H__ */

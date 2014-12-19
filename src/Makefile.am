@@ -1,3 +1,5 @@
+EXTRA_DIST =
+
 bin_PROGRAMS=gnome-battery-bench gbb
 libexec_PROGRAMS=gnome-battery-bench-helper
 
@@ -33,8 +35,14 @@ gnome_battery_bench_SOURCES =			\
 	$(x_sources)				\
 	gui.c					\
 	application.c				\
+	power-graphs.c				\
+	power-graphs.h				\
 	system-state.c				\
 	system-state.h				\
+	test-run.c				\
+	test-run.h				\
+	util-gtk.c				\
+	util-gtk.h				\
 	gnome-battery-bench.gresource.c
 
 gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
@@ -51,9 +59,13 @@ gnome_battery_bench_helper_SOURCES =		\
 	$(base_sources)				\
 	replay-helper.c
 
-OBJS = power-monitor.o system-state.o introspection.o
+ui_files =					\
+	gnome-battery-bench.xml			\
+	power-graphs.ui
 
-gnome-battery-bench.gresource.c: gnome-battery-bench.xml
+EXTRA_DIST += $(ui_files)
+
+gnome-battery-bench.gresource.c: $(ui_files)
 
 %.gresource.c : %.gresource.xml
 	$(GLIB_COMPILE_RESOURCES) --generate --target $@ $<

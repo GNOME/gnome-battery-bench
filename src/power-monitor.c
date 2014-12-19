@@ -56,7 +56,7 @@ gbb_power_state_free(GbbPowerState   *state)
 }
 
 double
-gbb_power_state_get_percent (GbbPowerState *state)
+gbb_power_state_get_percent (const GbbPowerState *state)
 {
     if (state->energy_full >= 0)
         return 100 * state->energy_now / state->energy_full;
@@ -297,18 +297,10 @@ add_to (double *total, double  increment)
         *total = increment;
 }
 
-static GbbPowerState *
-read_state(GbbPowerMonitor *monitor,
-           GbbPowerState   *state)
+static void
+gbb_power_state_init(GbbPowerState *state)
 {
-    GList *l;
-    int n_batteries = 0;
-
-    state->time_us = g_get_monotonic_time();
-
-    g_list_foreach (monitor->adapters, (GFunc)adapter_poll, NULL);
-    g_list_foreach (monitor->batteries, (GFunc)battery_poll, NULL);
-
+    state->time_us = 0;
     state->online = FALSE;
     state->energy_now = -1.0;
     state->energy_full = -1.0;
@@ -317,6 +309,28 @@ read_state(GbbPowerMonitor *monitor,
     state->charge_full = -1.0;
     state->charge_full_design = -1.0;
     state->capacity_now = -1.0;
+}
+
+GbbPowerState *
+gbb_power_state_new(void)
+{
+    GbbPowerState *state = g_slice_new(GbbPowerState);
+    gbb_power_state_init(state);
+    return state;
+}
+
+static GbbPowerState *
+read_state(GbbPowerMonitor *monitor,
+           GbbPowerState   *state)
+{
+    GList *l;
+    int n_batteries = 0;
+
+    gbb_power_state_init(state);
+    state->time_us = g_get_monotonic_time();
+
+    g_list_foreach (monitor->adapters, (GFunc)adapter_poll, NULL);
+    g_list_foreach (monitor->batteries, (GFunc)battery_poll, NULL);
 
     for (l = monitor->adapters; l; l = l->next) {
         Adapter *adapter = l->data;
@@ -402,9 +416,8 @@ gbb_power_monitor_get_state (GbbPowerMonitor *monitor)
 }
 
 GbbPowerStatistics *
-gbb_power_monitor_compute_statistics (GbbPowerMonitor *monitor,
-                                      GbbPowerState   *base,
-                                      GbbPowerState   *current)
+gbb_power_statistics_compute (const GbbPowerState   *base,
+                              const GbbPowerState   *current)
 {
     GbbPowerStatistics *statistics = g_slice_new(GbbPowerStatistics);
     statistics->power = -1;

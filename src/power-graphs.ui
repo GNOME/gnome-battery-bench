@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.18.1 -->
+<interface>
+  <requires lib="gtk+" version="3.14"/>
+  <template class="GbbPowerGraphs" parent="GtkGrid">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="column_spacing">3</property>
+    <child>
+      <object class="GtkDrawingArea" id="power_area">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">1</property>
+        <property name="width">2</property>
+        <property name="height">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="power_max">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">start</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">10W</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">1</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="power_min">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">end</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">0W</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label3">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">start</property>
+        <property name="label" translatable="yes">Power</property>
+        <attributes>
+          <attribute name="weight" value="bold"/>
+        </attributes>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">0</property>
+        <property name="width">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkDrawingArea" id="percentage_area">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">4</property>
+        <property name="width">2</property>
+        <property name="height">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkDrawingArea" id="life_area">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">7</property>
+        <property name="width">2</property>
+        <property name="height">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label4">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">start</property>
+        <property name="margin_top">5</property>
+        <property name="label" translatable="yes">Battery percentage</property>
+        <attributes>
+          <attribute name="weight" value="bold"/>
+        </attributes>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">3</property>
+        <property name="width">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label5">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">start</property>
+        <property name="margin_top">5</property>
+        <property name="label" translatable="yes">Estimated battery life</property>
+        <attributes>
+          <attribute name="weight" value="bold"/>
+        </attributes>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">6</property>
+        <property name="width">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="percentage_max">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">start</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">100%</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">4</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="percentage_min">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">end</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">0%</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">5</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="life_max">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">start</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">5h</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">7</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="life_min">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="valign">end</property>
+        <property name="vexpand">True</property>
+        <property name="label" translatable="yes">0h</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">8</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="time_min">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">start</property>
+        <property name="label" translatable="yes">0:00</property>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">9</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="time_max">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="halign">end</property>
+        <property name="label" translatable="yes">1:00</property>
+      </object>
+      <packing>
+        <property name="left_attach">2</property>
+        <property name="top_attach">9</property>
+      </packing>
+    </child>
+    <child>
+      <placeholder/>
+    </child>
+    <child>
+      <placeholder/>
+    </child>
+    <child>
+      <placeholder/>
+    </child>
+    <child>
+      <placeholder/>
+    </child>
+  </template>
+</interface>

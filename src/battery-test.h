@@ -3,9 +3,9 @@
 
 #include <glib-object.h>
 
-typedef struct _BatteryTest BatteryTest;
+typedef struct _GbbBatteryTest GbbBatteryTest;
 
-struct _BatteryTest {
+struct _GbbBatteryTest {
     char *id;
     char *name;
     char *path;
@@ -15,7 +15,7 @@ struct _BatteryTest {
     char *epilogue_file;
 };
 
-BatteryTest *battery_test_get_for_id(const char *id);
-GList       *battery_test_list_all  (void);
+GbbBatteryTest *gbb_battery_test_get_for_id(const char *id);
+GList          *gbb_battery_test_list_all  (void);
 
 #endif /* __BATTERY_TEST_H__ */

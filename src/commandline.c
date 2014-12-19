@@ -108,7 +108,7 @@ on_power_monitor_changed(GbbPowerMonitor *monitor)
     }
 
     GbbPowerState *state = gbb_power_monitor_get_state(monitor);
-    GbbPowerStatistics *statistics = gbb_power_monitor_compute_statistics(monitor, start_state, state);
+    GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, state);
 
     if (statistics->power >= 0)
         g_print("Power: %.2f W\n", statistics->power);
