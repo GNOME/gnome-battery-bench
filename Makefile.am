@@ -1,1 +1,1 @@
-SUBDIRS=data src tests
+SUBDIRS=data docs src tests

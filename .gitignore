@@ -12,6 +12,8 @@ depcomp
 /config.h
 /config.h.in
 gbb
+gbb.1
+gbb.html
 gnome-battery-bench
 gnome-battery-bench-helper
 install-sh

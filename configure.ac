@@ -25,6 +25,10 @@ PKG_CHECK_MODULES([HELPER], [$base_packages polkit-gobject-1])
 PKG_CHECK_MODULES([COMMANDLINE], [$base_packages $x_packages json-glib-1.0])
 PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0 json-glib-1.0])
 
+AC_PATH_PROG(ASCIIDOC, asciidoc, "")
+AC_PATH_PROG(XMLTO, xmlto, "")
+AM_CONDITIONAL(BUILD_DOCS, [ ASCIIDOC != x  -a XMLTO != x ])
+
 GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
 AC_SUBST(GLIB_COMPILE_RESOURCES)
 
@@ -41,6 +45,7 @@ AC_SUBST(AM_CFLAGS)
 AC_CONFIG_FILES([
   Makefile
   data/Makefile
+  docs/Makefile
   src/Makefile
   tests/Makefile
 ])

@@ -1,0 +1,91 @@
+gbb(1)
+======
+
+NAME
+----
+gbb - Command line integration client for GNOME Battery Bench
+
+SYNOPSIS
+--------
+[verse]
+'gbb monitor'
+'gbb play <filename>'
+'gbb play-local <filename>'
+'gbb record' [-o | --output <output file]
+'gbb test' [-o | --output <output file] [--duration <hours>h<minutes>m<seconds>s] [--min-battery <percent>] [--screen-brightness <percent>] <test-id>
+
+DESCRIPTION
+------------
+
+'gbb' is a command line client which is provided as part of the GNOME Battery Bench system.
+For interactive exploration and testing, the GNOME Battery Bench application provides a
+more polished interface, but gbb can be used for automating tests ('gbb tests'), developing
+new tests ('gbb record', and 'gbb play'), and debugging the GNOME Battery Bench application code
+('gbb monitor').
+
+For more information about GNOME Battery Bench, see the GNOME Battery Bench
+http://git.gnome.org/browse/gnome-battery-bench/plain/README[README file]
+
+COMMANDS
+--------
+
+monitor
+~~~~~~~
+
+'gbb monitor'
+
+Monitors the current battery usage, and prints statistics to standard out. This is a tool
+for developing gbb and isn't very useful.
+
+play
+~~~~
+
+'gbb play' <filename>
+
+Replays an event log recorded with 'gbb record'. This is mostly meant to try out an
+event log that you recorded without having to create a full test and install it
+the per-user or system-wide test directories.
+
+play-local
+~~~~~~~~~~
+
+'gbb play-local' <filename>
+
+Exactly the same as 'gbb play', but instead of talking to gnome-battery-bench-helper
+over D-BUS, it assumes that the current user has privileges to simulate events
+via '/dev/uinput'.
+
+record
+~~~~~~
+
+'gbb record' [-o | --output <output file>]
+
+Records events to standard output, or if '--output' is specified, to the given file.
+
+test
+~~~~
+
+Runs the specified test. Tests are looked for in '/usr/share/gnome-battery-bench/tests'
+and in '~/.config/gnome-battery-bench/.tests'.
+
+'gbb test' [-o | --output <output file] [--duration <hours>h<minutes>m<seconds>s] [--min-battery <percent>] [--screen-brightness <percent>] <test-id>
+
+--output;;
+        Specifies the output filename. If not specified, the output will be written in
+        '~/.local/share/gnome-batttery-bench/logs', and will be visible in the list of
+        historical runs in the user interface.
+
+--duration;;
+        Specifies how long to run the test for. Any or all of hours, minutes, and seconds
+        can be specified - e.g. '1h', '1h10m', '10m3s', '100s'.
+
+--min-battery;;
+        Specifies that the test will run until the battery reaches the specified percentage.
+        Exclusive with the '--duration' argument
+
+--screen-brightness;;
+        Sets the brightness of the backlight during the test
+
+Author
+------
+Written by Owen Taylor <otaylor@fishsoup.net>.
