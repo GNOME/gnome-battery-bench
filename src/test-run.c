@@ -408,6 +408,28 @@ gbb_test_run_write_to_file(GbbTestRun *run,
     return success;
 }
 
+char *
+gbb_test_run_get_default_path(GbbTestRun *run,
+                              GFile      *folder)
+{
+    g_return_val_if_fail(run->start_time != 0, NULL);
+    g_return_val_if_fail(run->test != NULL, NULL);
+
+    GDateTime *start_datetime = g_date_time_new_from_unix_utc(run->start_time);
+    char *start_string = g_date_time_format(start_datetime, "%F-%T");
+    char *file_name = g_strdup_printf("%s-%s.json", start_string, run->test->id);
+    GFile *file = g_file_get_child(folder, file_name);
+    g_free(file_name);
+    g_free(start_string);
+    g_date_time_unref(start_datetime);
+
+    char *file_path = g_file_get_path(file);
+
+    g_object_unref(file);
+
+    return file_path;
+}
+
 typedef enum {
     MISSING, ERROR, OK
 } GetResult;

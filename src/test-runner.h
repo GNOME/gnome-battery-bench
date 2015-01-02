@@ -38,6 +38,7 @@ gboolean     gbb_test_runner_get_stop_requested(GbbTestRunner *runner);
 
 void gbb_test_runner_set_run(GbbTestRunner *runner,
                              GbbTestRun    *run);
+GbbTestRun *gbb_test_runner_get_run(GbbTestRunner *runner);
 
 void gbb_test_runner_start(GbbTestRunner *runner);
 void gbb_test_runner_stop (GbbTestRunner *runner);

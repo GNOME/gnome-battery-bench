@@ -187,6 +187,12 @@ gbb_test_runner_set_run(GbbTestRunner *runner,
     runner->test = gbb_test_run_get_test(run);
 }
 
+GbbTestRun *
+gbb_test_runner_get_run(GbbTestRunner *runner)
+{
+    return runner->run;
+}
+
 void
 gbb_test_runner_start(GbbTestRunner *runner)
 {

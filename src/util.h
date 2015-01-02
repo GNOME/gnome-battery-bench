@@ -12,4 +12,6 @@ void die_errno(const char *msg, ...)
 void break_time(double span,
                 int *h, int *m, int *s);
 
+
+
 #endif /* __UTIL_H__ */

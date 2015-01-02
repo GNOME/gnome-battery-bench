@@ -68,6 +68,9 @@ const GbbPowerState *gbb_test_run_get_last_state  (GbbTestRun *run);
 double          gbb_test_run_get_max_power        (GbbTestRun *run);
 double          gbb_test_run_get_max_battery_life (GbbTestRun *run);
 
+char *gbb_test_run_get_default_path(GbbTestRun *run,
+                                    GFile      *folder);
+
 gboolean gbb_test_run_write_to_file(GbbTestRun *run,
                                     const char *filename,
                                     GError    **error);

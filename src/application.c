@@ -436,8 +436,6 @@ write_run_to_disk(GbbApplication *application,
 {
     GError *error = NULL;
 
-    gint64 start_time = gbb_test_run_get_start_time(application->run);
-
     if (!g_file_query_exists(application->log_folder, NULL)) {
         if (!g_file_make_directory_with_parents(application->log_folder, NULL, &error)) {
             g_warning("Cannot create log directory: %s\n", error->message);
@@ -446,21 +444,12 @@ write_run_to_disk(GbbApplication *application,
         }
     }
 
-    GDateTime *start_datetime = g_date_time_new_from_unix_utc(start_time);
-    char *start_string = g_date_time_format(start_datetime, "%F-%T");
-    char *file_name = g_strdup_printf("%s-%s.json", start_string, application->test->id);
-    GFile *file = g_file_get_child(application->log_folder, file_name);
-    g_free(file_name);
-    g_free(start_string);
-    g_date_time_unref(start_datetime);
-
-    char *file_path = g_file_get_path(file);
-    if (!gbb_test_run_write_to_file(application->run, file_path, &error)) {
+    char *path = gbb_test_run_get_default_path(run, application->log_folder);
+    if (!gbb_test_run_write_to_file(application->run, path, &error)) {
         g_warning("Can't write test run to disk: %s\n", error->message);
         g_clear_error(&error);
     }
-    g_free(file_path);
-    g_object_unref(file);
+    g_free(path);
 }
 
 static void
