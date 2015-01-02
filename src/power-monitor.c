@@ -415,10 +415,10 @@ gbb_power_monitor_new(void)
     return monitor;
 }
 
-GbbPowerState *
+const GbbPowerState *
 gbb_power_monitor_get_state (GbbPowerMonitor *monitor)
 {
-    return gbb_power_state_copy(&monitor->current_state);
+    return &monitor->current_state;
 }
 
 GbbPowerStatistics *

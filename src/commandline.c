@@ -103,11 +103,11 @@ static void
 on_power_monitor_changed(GbbPowerMonitor *monitor)
 {
     if (start_state == NULL) {
-        start_state = gbb_power_monitor_get_state(monitor);
+        start_state = gbb_power_state_copy(gbb_power_monitor_get_state(monitor));
         return;
     }
 
-    GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+    const GbbPowerState *state = gbb_power_monitor_get_state(monitor);
     GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, state);
 
     if (statistics->power >= 0)
@@ -127,7 +127,6 @@ on_power_monitor_changed(GbbPowerMonitor *monitor)
                 statistics->battery_life_design, h, m, s);
     }
 
-    gbb_power_state_free(state);
     gbb_power_statistics_free(statistics);
 
 }

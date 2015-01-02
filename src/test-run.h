@@ -30,6 +30,8 @@ GbbTestRun *gbb_test_run_new(GbbBatteryTest *test);
 GbbTestRun *gbb_test_run_new_from_file(const char *filename,
                                        GError    **error);
 
+GbbBatteryTest *gbb_test_run_get_test(GbbTestRun *run);
+
 void   gbb_test_run_set_start_time(GbbTestRun *run,
                                    gint64      t);
 gint64 gbb_test_run_get_start_time(GbbTestRun *run);

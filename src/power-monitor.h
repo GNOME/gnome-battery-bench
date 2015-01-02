@@ -40,7 +40,7 @@ GType               gbb_power_monitor_get_type(void);
 
 GbbPowerMonitor    *gbb_power_monitor_new        (void);
 
-GbbPowerState      *gbb_power_monitor_get_state  (GbbPowerMonitor *monitor);
+const GbbPowerState *gbb_power_monitor_get_state (GbbPowerMonitor *monitor);
 
 GbbPowerState      *gbb_power_state_new          (void);
 GbbPowerState      *gbb_power_state_copy         (const GbbPowerState   *state);

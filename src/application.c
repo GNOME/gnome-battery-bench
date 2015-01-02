@@ -13,32 +13,15 @@
 
 #include "application.h"
 #include "battery-test.h"
-#include "remote-player.h"
 #include "power-graphs.h"
-#include "power-monitor.h"
-#include "system-state.h"
-#include "test-run.h"
+#include "test-runner.h"
 #include "util.h"
-
-typedef enum {
-    DURATION_TIME,
-    DURATION_PERCENT
-} DurationType;
-
-typedef enum {
-    STATE_STOPPED,
-    STATE_PROLOGUE,
-    STATE_WAITING,
-    STATE_RUNNING,
-    STATE_STOPPING,
-    STATE_EPILOGUE
-} State;
 
 struct _GbbApplication {
     GtkApplication parent;
+    GbbTestRunner *runner;
     GbbPowerMonitor *monitor;
     GbbEventPlayer *player;
-    GbbSystemState *system_state;
 
     GFile *log_folder;
 
@@ -62,8 +45,6 @@ struct _GbbApplication {
     GtkWidget *test_graphs;
     GtkWidget *log_graphs;
 
-    State state;
-    gboolean stop_requested;
     gboolean exit_requested;
 
     GbbBatteryTest *test;
@@ -123,20 +104,20 @@ update_labels(GbbApplication *application)
               "%s", current_state->online ? "online" : "offline");
 
     char *title = NULL;
-    switch (application->state) {
-    case STATE_STOPPED:
+    switch (gbb_test_runner_get_phase(application->runner)) {
+    case GBB_TEST_PHASE_STOPPED:
         title = g_strdup("GNOME Battery Bench");
         break;
-    case STATE_PROLOGUE:
+    case GBB_TEST_PHASE_PROLOGUE:
         title = g_strdup("GNOME Battery Bench - setting up");
         break;
-    case STATE_WAITING:
+    case GBB_TEST_PHASE_WAITING:
         if (current_state->online)
             title = g_strdup("GNOME Battery Bench - disconnect from AC to start");
         else
             title = g_strdup("GNOME Battery Bench - waiting for data");
         break;
-    case STATE_RUNNING:
+    case GBB_TEST_PHASE_RUNNING:
     {
         int h, m, s;
         const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
@@ -144,10 +125,10 @@ update_labels(GbbApplication *application)
         title = g_strdup_printf("GNOME Battery Bench - running (%d:%02d:%02d)", h, m, s);
         break;
     }
-    case STATE_STOPPING:
+    case GBB_TEST_PHASE_STOPPING:
         title = g_strdup("GNOME Battery Bench - stopping");
         break;
-    case STATE_EPILOGUE:
+    case GBB_TEST_PHASE_EPILOGUE:
         title = g_strdup("GNOME Battery Bench - cleaning up");
         break;
     }
@@ -228,19 +209,19 @@ update_sensitive(GbbApplication *application)
     gboolean start_sensitive = FALSE;
     gboolean controls_sensitive = FALSE;
 
-    switch (application->state) {
-    case STATE_STOPPED:
+    switch (gbb_test_runner_get_phase(application->runner)) {
+    case GBB_TEST_PHASE_STOPPED:
         start_sensitive = gbb_event_player_is_ready(application->player);
         controls_sensitive = TRUE;
         break;
-    case STATE_PROLOGUE:
-    case STATE_WAITING:
-    case STATE_RUNNING:
-        start_sensitive = !application->stop_requested;
+    case GBB_TEST_PHASE_PROLOGUE:
+    case GBB_TEST_PHASE_WAITING:
+    case GBB_TEST_PHASE_RUNNING:
+        start_sensitive = !gbb_test_runner_get_stop_requested(application->runner);
         controls_sensitive = FALSE;
         break;
-    case STATE_STOPPING:
-    case STATE_EPILOGUE:
+    case GBB_TEST_PHASE_STOPPING:
+    case GBB_TEST_PHASE_EPILOGUE:
         start_sensitive = FALSE;
         controls_sensitive = FALSE;
         break;
@@ -253,15 +234,6 @@ update_sensitive(GbbApplication *application)
 }
 
 static void
-application_set_state(GbbApplication *application,
-                      State           state)
-{
-    application->state = state;
-    update_sensitive(application);
-    update_labels(application);
-}
-
-static void
 on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbApplication  *application)
 {
@@ -269,18 +241,7 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
         gbb_power_state_free(application->previous_state);
 
     application->previous_state = application->current_state;
-    application->current_state = gbb_power_monitor_get_state(monitor);
-
-    if (application->state == STATE_WAITING) {
-        if (!application->current_state->online) {
-            gbb_test_run_set_start_time(application->run, time(NULL));
-            gbb_test_run_add(application->run, application->current_state);
-            application_set_state(application, STATE_RUNNING);
-            gbb_event_player_play_file(application->player, application->test->loop_file);
-        }
-    } else if (application->state == STATE_RUNNING) {
-        gbb_test_run_add(application->run, application->current_state);
-    }
+    application->current_state = gbb_power_state_copy(gbb_power_monitor_get_state(monitor));
 
     update_labels(application);
 }
@@ -503,67 +464,9 @@ write_run_to_disk(GbbApplication *application,
 }
 
 static void
-application_set_stopped(GbbApplication *application)
-{
-    application_set_state(application, STATE_STOPPED);
-
-    const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
-    const GbbPowerState *last_state = gbb_test_run_get_last_state(application->run);
-    if (last_state != start_state) {
-        write_run_to_disk(application, application->run);
-        add_run_to_logs(application, application->run);
-    }
-
-    application->test = NULL;
-
-    remove_stop_shortcut(application);
-
-    gbb_system_state_restore(application->system_state);
-
-    g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
-
-    if (application->exit_requested)
-        gtk_widget_destroy(application->window);
-}
-
-static void
-application_set_epilogue(GbbApplication *application)
-{
-    if (application->test->epilogue_file) {
-        gbb_event_player_play_file(application->player, application->test->epilogue_file);
-        application_set_state(application, STATE_EPILOGUE);
-    } else {
-        application_set_stopped(application);
-    }
-}
-
-static void
-on_player_finished(GbbEventPlayer *player,
-                   GbbApplication *application)
-{
-    if (application->state == STATE_PROLOGUE) {
-        application_set_state(application, STATE_WAITING);
-
-        if (application->stop_requested) {
-            application->stop_requested = FALSE;
-            application_stop(application);
-        }
-    } else if (application->state == STATE_RUNNING) {
-        if (gbb_test_run_is_done(application->run))
-            application_set_epilogue(application);
-        else
-            gbb_event_player_play_file(player, application->test->loop_file);
-    } else if (application->state == STATE_STOPPING) {
-        application_set_epilogue(application);
-    } else if (application->state == STATE_EPILOGUE) {
-        application_set_stopped(application);
-    }
-}
-
-static void
 application_start(GbbApplication *application)
 {
-    if (application->state != STATE_STOPPED)
+    if (gbb_test_runner_get_phase(application->runner) != GBB_TEST_PHASE_STOPPED)
         return;
 
     if (application->run) {
@@ -594,39 +497,18 @@ application_start(GbbApplication *application)
 
     gbb_test_run_set_screen_brightness(application->run, screen_brightness);
 
-    gbb_system_state_save(application->system_state);
-    gbb_system_state_set_brightnesses(application->system_state,
-                                      screen_brightness,
-                                      0);
-
     gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), application->run);
 
     setup_stop_shortcut(application);
 
-    update_labels(application);
-
-    if (application->test->prologue_file) {
-        gbb_event_player_play_file(application->player, application->test->prologue_file);
-        application_set_state(application, STATE_PROLOGUE);
-    } else {
-        application_set_state(application, STATE_WAITING);
-    }
+    gbb_test_runner_set_run(application->runner, application->run);
+    gbb_test_runner_start(application->runner);
 }
 
 static void
 application_stop(GbbApplication *application)
 {
-    if ((application->state == STATE_WAITING || application->state == STATE_RUNNING)) {
-        if (application->state == STATE_RUNNING) {
-            gbb_event_player_stop(application->player);
-            application_set_state(application, STATE_STOPPING);
-        } else {
-            application_set_epilogue(application);
-        }
-    } else if (application->state == STATE_PROLOGUE) {
-        application->stop_requested = TRUE;
-        update_sensitive(application);
-    }
+    gbb_test_runner_stop(application->runner);
 }
 
 static void
@@ -643,11 +525,13 @@ static void
 on_start_button_clicked(GtkWidget      *button,
                         GbbApplication *application)
 {
-    if (application->state == STATE_STOPPED) {
+    GbbTestPhase phase = gbb_test_runner_get_phase(application->runner);
+
+    if (phase == GBB_TEST_PHASE_STOPPED) {
         application_start(application);
-    } else if (application->state == STATE_PROLOGUE ||
-               application->state == STATE_WAITING ||
-               application->state == STATE_RUNNING) {
+    } else if (phase == GBB_TEST_PHASE_PROLOGUE ||
+               phase == GBB_TEST_PHASE_WAITING ||
+               phase == GBB_TEST_PHASE_RUNNING) {
         application_stop(application);
     }
 }
@@ -710,7 +594,7 @@ on_delete_event(GtkWidget      *window,
                 GdkEventAny    *event,
                 GbbApplication *application)
 {
-    if (application->state == STATE_STOPPED) {
+    if (gbb_test_runner_get_phase(application->runner) == GBB_TEST_PHASE_STOPPED) {
         return FALSE;
     } else {
         application->exit_requested = TRUE;
@@ -951,7 +835,7 @@ gbb_application_activate (GApplication *app)
                      G_CALLBACK(on_main_stack_notify_visible_child), application);
     on_main_stack_notify_visible_child(GTK_STACK(main_stack), NULL, application);
 
-    application->current_state = gbb_power_monitor_get_state(application->monitor);
+    application->current_state = gbb_power_state_copy(gbb_power_monitor_get_state(application->monitor));
     g_signal_connect(application->monitor, "changed",
                      G_CALLBACK(on_power_monitor_changed),
                      application);
@@ -973,20 +857,47 @@ gbb_application_class_init(GbbApplicationClass *class)
 }
 
 static void
+on_runner_phase_changed(GbbTestRunner  *runner,
+                        GbbApplication *application)
+{
+    if (gbb_test_runner_get_phase(runner) == GBB_TEST_PHASE_STOPPED) {
+        const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
+        const GbbPowerState *last_state = gbb_test_run_get_last_state(application->run);
+        if (last_state != start_state) {
+            write_run_to_disk(application, application->run);
+            add_run_to_logs(application, application->run);
+        }
+
+        application->test = NULL;
+
+        remove_stop_shortcut(application);
+
+        g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
+
+        if (application->exit_requested)
+            gtk_widget_destroy(application->window);
+    }
+
+    update_sensitive(application);
+    update_labels(application);
+}
+
+static void
 gbb_application_init(GbbApplication *application)
 {
-    application->monitor = gbb_power_monitor_new();
-    application->system_state = gbb_system_state_new();
+    application->runner = gbb_test_runner_new();
+    g_signal_connect(application->runner, "phase-changed",
+                     G_CALLBACK(on_runner_phase_changed), application);
+
+    application->monitor = gbb_test_runner_get_power_monitor(application->runner);
 
     char *folder_path = g_build_filename(g_get_user_data_dir(), PACKAGE_NAME, "logs", NULL);
     application->log_folder = g_file_new_for_path(folder_path);
     g_free(folder_path);
 
-    application->player = GBB_EVENT_PLAYER(gbb_remote_player_new("GNOME Battery Bench"));
+    application->player = gbb_test_runner_get_event_player(application->runner);
     g_signal_connect(application->player, "ready",
                      G_CALLBACK(on_player_ready), application);
-    g_signal_connect(application->player, "finished",
-                     G_CALLBACK(on_player_finished), application);
 }
 
 GbbApplication *
