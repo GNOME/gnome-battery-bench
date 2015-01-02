@@ -27,20 +27,42 @@
 static GbbPowerState *start_state;
 
 static void
-on_power_monitor_changed(GbbPowerMonitor *monitor)
+on_power_monitor_changed(GbbPowerMonitor *monitor,
+                         GbbTestRunner   *runner)
 {
-    if (start_state == NULL) {
-        start_state = gbb_power_state_copy(gbb_power_monitor_get_state(monitor));
-        return;
+    const GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+
+    g_print("AC: %s\n", state->online ? "online" : "offline");
+    if (state->energy_now >= 0)
+        g_print("Energy: %.2f WH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
+    else if (state->charge_now >= 0)
+        g_print("Charge: %.2f AH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
+    else if (state->capacity_now >= 0)
+        g_print("Capacity: %.2f%%\n", gbb_power_state_get_percent(state));
+
+    if (runner != NULL) {
+        GbbTestRun *run = gbb_test_runner_get_run(runner);
+        const GbbPowerState *tmp = gbb_test_run_get_start_state(run);
+        if (tmp)
+            start_state = gbb_power_state_copy(tmp);
+    } else {
+        if (start_state == NULL) {
+            if (!state->online)
+                start_state = gbb_power_state_copy(state);
+
+            return;
+        }
     }
 
-    const GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+    if (!start_state)
+        return;
+
     GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, state);
 
     if (statistics->power >= 0)
-        g_print("Power: %.2f W\n", statistics->power);
+        g_print("Average power: %.2f W\n", statistics->power);
     if (statistics->current >= 0)
-        g_print("Current: %.2f A\n", statistics->current);
+        g_print("Average current: %.2f A\n", statistics->current);
     if (statistics->battery_life >= 0) {
         int h, m, s;
         break_time(statistics->battery_life, &h, &m, &s);
@@ -170,6 +192,7 @@ static char *test_duration;
 static int test_min_battery = -42;
 static int test_screen_brightness = 50;
 static char *test_output;
+static gboolean test_verbose;
 
 static GOptionEntry test_options[] =
 {
@@ -177,6 +200,7 @@ static GOptionEntry test_options[] =
     { "min-battery", 'm', 0, G_OPTION_ARG_INT, &test_duration, "", "PERCENT" },
     { "screen-brightness", 0, 0, G_OPTION_ARG_INT, &test_screen_brightness, "screen backlight brightness (0-100)", "PERCENT" },
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &test_output, "Output filename", "FILENAME" },
+    { "verbose", 'v', 0, G_OPTION_ARG_NONE, &test_verbose, "Show verbose statistics" },
     { NULL }
 };
 
@@ -349,6 +373,13 @@ test(int argc, char **argv)
     } else {
         g_signal_connect(player, "ready",
                          G_CALLBACK(test_on_player_ready), runner);
+    }
+
+    if (test_verbose) {
+        GbbPowerMonitor *monitor = gbb_test_runner_get_power_monitor(runner);
+        g_signal_connect(monitor, "changed",
+                         G_CALLBACK(on_power_monitor_changed), runner);
+        on_power_monitor_changed(monitor, runner);
     }
 
     g_unix_signal_add(SIGINT, on_sigint, runner);

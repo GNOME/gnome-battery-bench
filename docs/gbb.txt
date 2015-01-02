@@ -12,7 +12,7 @@ SYNOPSIS
 'gbb play <filename>'
 'gbb play-local <filename>'
 'gbb record' [-o | --output <output file]
-'gbb test' [-o | --output <output file] [--duration <hours>h<minutes>m<seconds>s] [--min-battery <percent>] [--screen-brightness <percent>] <test-id>
+'gbb test' [-o | --output <output file] [--duration <hours>h<minutes>m<seconds>s] [--min-battery <percent>] [--screen-brightness <percent>] [-v | --verbose] <test-id>
 
 DESCRIPTION
 ------------
@@ -34,8 +34,9 @@ monitor
 
 'gbb monitor'
 
-Monitors the current battery usage, and prints statistics to standard out. This is a tool
-for developing gbb and isn't very useful.
+Monitors the current battery usage and and prints statistics to standard out. This is
+the same as 'gbb test --verbose' without actually running a test, and is mostly a tool
+for debugging the GNOME Battery Bench application code.
 
 play
 ~~~~
@@ -85,6 +86,9 @@ and in '~/.config/gnome-battery-bench/.tests'.
 
 --screen-brightness;;
         Sets the brightness of the backlight during the test
+
+--verbose;;
+        Print verbose statistics in the style of 'gbb monitor'
 
 Author
 ------
