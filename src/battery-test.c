@@ -152,7 +152,7 @@ tests_init(void)
 
     char *user_tests_path = g_build_filename (g_get_user_config_dir(),
                                               PACKAGE_NAME,
-                                              "test",
+                                              "tests",
                                               NULL);
     if (g_file_test(user_tests_path, G_FILE_TEST_IS_DIR))
         load_tests_from_directory(user_tests_path);
