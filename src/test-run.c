@@ -336,10 +336,37 @@ gbb_test_run_write_to_file(GbbTestRun *run,
         g_free(start_string);
     }
 
+    const GbbPowerState *start_state = gbb_test_run_get_start_state(run);
+    const GbbPowerState *end_state = gbb_test_run_get_last_state(run);
+    if (end_state != start_state) {
+        /* The statistics aren't needed for reading the data back into the UI,
+         * but are useful if the ouput files are going to be read by some other
+         * consumer.
+         */
+        GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, end_state);
+        if (statistics->power > 0) {
+            json_builder_set_member_name(builder, "power");
+            json_builder_add_double_value(builder, statistics->power);
+        }
+        if (statistics->current > 0) {
+            json_builder_set_member_name(builder, "current");
+            json_builder_add_double_value(builder, statistics->current);
+        }
+        if (statistics->battery_life > 0) {
+            json_builder_set_member_name(builder, "estimated-life");
+            json_builder_add_double_value(builder, statistics->battery_life);
+        }
+        if (statistics->battery_life_design > 0) {
+            json_builder_set_member_name(builder, "estimated-life-design");
+            json_builder_add_double_value(builder, statistics->battery_life_design);
+        }
+
+        gbb_power_statistics_free(statistics);
+    }
+
     json_builder_set_member_name(builder, "log");
     json_builder_begin_array(builder);
     GList *l;
-    const GbbPowerState *start_state = gbb_test_run_get_start_state(run);
 
     const GbbPowerState *last_state = NULL;
     for (l = run->history->head; l; l = l->next) {
@@ -380,6 +407,7 @@ gbb_test_run_write_to_file(GbbTestRun *run,
             json_builder_set_member_name(builder, "capacity");
             add_int_value_1e6(builder, state->capacity_now);
         }
+
         json_builder_end_object(builder);
         last_state = state;
     }
