@@ -13,6 +13,7 @@
 #include <X11/Xlib.h>
 
 #include <glib.h>
+#include <glib-unix.h>
 #include <gio/gio.h>
 
 #include "evdev-player.h"
@@ -301,6 +302,14 @@ fail:
     die("Can't parse duration string '%s'", duration);
 }
 
+static gboolean
+on_sigint(gpointer data)
+{
+    GbbTestRunner *runner = data;
+    gbb_test_runner_stop(runner);
+    return TRUE;
+}
+
 static int
 test(int argc, char **argv)
 {
@@ -341,6 +350,8 @@ test(int argc, char **argv)
         g_signal_connect(player, "ready",
                          G_CALLBACK(test_on_player_ready), runner);
     }
+
+    g_unix_signal_add(SIGINT, on_sigint, runner);
 
     GMainLoop *loop = g_main_loop_new (NULL, FALSE);
     g_signal_connect(runner, "phase-changed",
