@@ -25,6 +25,7 @@ struct _GbbPowerState {
     double charge_full;
     double charge_full_design;
     double capacity_now; /* 0 - 1.0 */
+    double voltage_now;
 };
 
 struct _GbbPowerStatistics {

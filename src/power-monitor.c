@@ -33,6 +33,7 @@ typedef struct  {
     double charge_full;
     double charge_full_design;
     double capacity_now;
+    double voltage_now;
 } Battery;
 
 typedef struct  {
@@ -79,7 +80,8 @@ gbb_power_state_equal(GbbPowerState *a,
             a->charge_now == b->charge_now &&
             a->charge_full == b->charge_full &&
             a->charge_full_design == b->charge_full_design &&
-            a->capacity_now == b->capacity_now);
+            a->capacity_now == b->capacity_now &&
+            a->voltage_now == b->voltage_now);
 }
 
 void
@@ -158,6 +160,7 @@ battery_poll(Battery *battery)
     if (battery->charge_now >= 0) {
         get_file_contents_double (battery->directory, "charge_full", &battery->charge_full, NULL, NULL);
         get_file_contents_double (battery->directory, "charge_full_design", &battery->charge_full_design, NULL, NULL);
+        get_file_contents_double (battery->directory, "voltage_now", &battery->voltage_now, NULL, NULL);
         return;
     }
 
@@ -309,6 +312,7 @@ gbb_power_state_init(GbbPowerState *state)
     state->charge_full = -1.0;
     state->charge_full_design = -1.0;
     state->capacity_now = -1.0;
+    state->voltage_now = -1.0;
 }
 
 GbbPowerState *
@@ -359,6 +363,7 @@ read_state(GbbPowerMonitor *monitor,
         } else if (battery->charge_now >= 0) {
             add_to (&state->charge_now, battery->charge_now);
             add_to (&state->charge_full, battery->charge_full);
+            add_to (&state->voltage_now, battery->voltage_now);
 
             if (battery->charge_full_design >= 0) {
                 if (n_batteries == 0 || state->charge_full_design >= 0)
@@ -444,8 +449,10 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
         }
     } else if (current->charge_now >= 0 && time_elapsed > 0) {
         double charge_used = base->charge_now - current->charge_now;
+        double energy_used = base->charge_now * base->voltage_now - current->charge_now * current->voltage_now;
         if (charge_used > 0) {
             statistics->current = 3600 * (charge_used) / time_elapsed;
+            statistics->power = 3600 * (energy_used) / time_elapsed;
             if (base->charge_full >= 0)
                 statistics->battery_life = 3600 * base->charge_full / statistics->current;
             if (base->charge_full_design >= 0)
