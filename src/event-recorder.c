@@ -101,7 +101,7 @@ xrecord_callback (XPointer              closure,
                 void *detailp = GUINT_TO_POINTER(button);
 
                 if (button == 4 || button == 5) {
-                    dump_event(recorder, "Wheel", xevent, button == 4 ? -1 : 1);
+                    dump_event(recorder, "Wheel", xevent, button == 4 ? 1 : -1);
                     goto next;
                 }
 
