@@ -27,7 +27,7 @@ PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0 json-glib-
 
 AC_PATH_PROG(ASCIIDOC, asciidoc, "")
 AC_PATH_PROG(XMLTO, xmlto, "")
-AM_CONDITIONAL(BUILD_DOCS, [ ASCIIDOC != x  -a XMLTO != x ])
+AM_CONDITIONAL(BUILD_DOCS, [ test $ASCIIDOC != x  -a $XMLTO != x ])
 
 GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
 AC_SUBST(GLIB_COMPILE_RESOURCES)

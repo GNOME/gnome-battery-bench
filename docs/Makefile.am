@@ -1,7 +1,9 @@
 CLEANFILES =
 EXTRA_DIST =
 
+if BUILD_DOCS
 man1_MANS = gbb.1
+endif
 
 EXTRA_DIST += asciidoc.conf gbb.txt
 CLEANFILES += gbb.html gbb.1
