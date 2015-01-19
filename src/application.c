@@ -179,12 +179,12 @@ update_labels(GbbApplication *application)
     }
 
     if (overall_statistics && overall_statistics->power >= 0)
-        set_label(application, "power-average", "%.1fW", overall_statistics->power);
+        set_label(application, "power-average", "%.2fW", overall_statistics->power);
     else
         clear_label(application, "power-average");
 
     if (interval_statistics && interval_statistics->power >= 0) {
-        set_label(application, "power-instant", "%.1fW", interval_statistics->power);
+        set_label(application, "power-instant", "%.2fW", interval_statistics->power);
     } else {
         clear_label(application, "power-instant");
     }
@@ -614,12 +614,12 @@ fill_log_from_run(GbbApplication *application,
     if (last_state != start_state) {
         GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, last_state);
         if (statistics->power >= 0)
-            set_label(application, "power-average-log", "%.1fW", statistics->power);
+            set_label(application, "power-average-log", "%.2fW", statistics->power);
         else
             clear_label(application, "power-average-log");
 
         if (last_state->energy_full >= 0)
-            set_label(application, "energy-full-log", "%.1fWH", last_state->energy_full);
+            set_label(application, "energy-full-log", "%.2fW", last_state->energy_full);
         else
             clear_label(application, "energy-full-log");
 
