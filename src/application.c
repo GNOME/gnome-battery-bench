@@ -136,12 +136,12 @@ update_labels(GbbApplication *application)
     g_free(title);
 
     if (current_state->energy_now >= 0)
-        set_label(application, "energy-now", "%.1fWH", current_state->energy_now);
+        set_label(application, "energy-now", "%.1fWh", current_state->energy_now);
     else
         clear_label(application, "energy-now");
 
     if (current_state->energy_full >= 0)
-        set_label(application, "energy-full", "%.1fWH", current_state->energy_full);
+        set_label(application, "energy-full", "%.1fWh", current_state->energy_full);
     else
         clear_label(application, "energy-full");
 
@@ -151,7 +151,7 @@ update_labels(GbbApplication *application)
         clear_label(application, "percentage");
 
     if (current_state->energy_full_design >= 0)
-        set_label(application, "energy-full-design", "%.1fWH", current_state->energy_full_design);
+        set_label(application, "energy-full-design", "%.1fWh", current_state->energy_full_design);
     else
         clear_label(application, "energy-full-design");
 
@@ -624,7 +624,7 @@ fill_log_from_run(GbbApplication *application,
             clear_label(application, "energy-full-log");
 
         if (last_state->energy_full_design >= 0)
-            set_label(application, "energy-full-design-log", "%.1fWH", last_state->energy_full);
+            set_label(application, "energy-full-design-log", "%.1fWh", last_state->energy_full);
         else
             clear_label(application, "energy-full-design-log");
 
