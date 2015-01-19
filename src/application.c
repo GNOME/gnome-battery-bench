@@ -167,8 +167,15 @@ update_labels(GbbApplication *application)
     GbbPowerStatistics *overall_statistics = NULL;
     if (application->run) {
         const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
-        if (start_state)
-            overall_statistics = gbb_power_statistics_compute(start_state, current_state);
+        if (start_state) {
+            const GbbPowerState *end_state;
+            if (gbb_test_runner_get_phase(application->runner) == GBB_TEST_PHASE_RUNNING)
+                end_state = current_state;
+            else
+                end_state = gbb_test_run_get_last_state(application->run);
+
+            overall_statistics = gbb_power_statistics_compute(start_state, end_state);
+        }
     }
 
     if (overall_statistics && overall_statistics->power >= 0)
