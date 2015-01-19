@@ -41,6 +41,7 @@ gnome_battery_bench_SOURCES =			\
 	$(client_sources)			\
 	gui.c					\
 	application.c				\
+	application.h				\
 	power-graphs.c				\
 	power-graphs.h				\
 	util-gtk.c				\
