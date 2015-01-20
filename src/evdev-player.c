@@ -24,7 +24,9 @@ struct _GbbEvdevPlayer {
 
     char *filename;
     gint64 start_time;
+    int uinput_fd_keyboard;
     struct libevdev_uinput *uidev_keyboard;
+    int uinput_fd_mouse;
     struct libevdev_uinput *uidev_mouse;
     GDataInputStream *input;
 
@@ -131,8 +133,14 @@ gbb_evdev_player_finalize(GObject *object)
 {
     GbbEvdevPlayer *player = GBB_EVDEV_PLAYER(object);
 
-    libevdev_uinput_destroy(player->uidev_keyboard);
-    libevdev_uinput_destroy(player->uidev_mouse);
+    if (player->uinput_fd_keyboard >= 0)
+        close(player->uinput_fd_keyboard);
+    if (player->uidev_keyboard)
+        libevdev_uinput_destroy(player->uidev_keyboard);
+    if (player->uinput_fd_mouse >= 0)
+        close(player->uinput_fd_keyboard);
+    if (player->uidev_mouse)
+        libevdev_uinput_destroy(player->uidev_mouse);
 
     g_clear_object(&player->input);
 
@@ -184,6 +192,8 @@ gbb_evdev_player_stop(GbbEventPlayer *event_player)
 static void
 gbb_evdev_player_init(GbbEvdevPlayer *player)
 {
+    player->uinput_fd_keyboard = -1;
+    player->uinput_fd_mouse = -1;
 }
 
 static void
@@ -197,11 +207,50 @@ gbb_evdev_player_class_init(GbbEvdevPlayerClass *player_class)
     event_player_class->stop = gbb_evdev_player_stop;
 }
 
+static struct libevdev_uinput *
+create_uinput(struct libevdev *dev,
+              int             *fd_return,
+              GError         **error)
+{
+    /* Since we don't need to access the FD directly, we could use
+     * LIBEVDEV_UINPUT_OPEN_MANAGED instead of opening /dev/input directly.
+     * However, a bug in libevdev 1.2.2 and earlier means that we don't get the
+     * right return code if we use that option - -EBADF is always returned.
+     * We open directly so that the error message will be useful.
+     */
+    int fd = open("/dev/uinput", O_CLOEXEC | O_RDWR);
+    if (fd < 0) {
+        if (errno == EACCES)
+            g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno),
+                        "Need to be root to simulate events");
+        else if (errno == ENOENT)
+            g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno),
+                        "Can't open /dev/uinput: %s. The kernel may not be compiled with uinput support.", strerror(errno));
+        else
+            g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno),
+                        "Can't open /dev/uinput: %s", strerror(errno));
+
+        return NULL;
+    }
+
+    static struct libevdev_uinput *uinput;
+    int rc = libevdev_uinput_create_from_device(dev, fd, &uinput);
+    if (rc != 0) {
+        g_set_error(error, G_IO_ERROR, g_io_error_from_errno(-rc),
+                    "Can't create uinput device: %s", strerror(-rc));
+        close(fd);
+        return NULL;
+    }
+
+    *fd_return = fd;
+    return uinput;
+}
+
 GbbEvdevPlayer *
-gbb_evdev_player_new(const char *name)
+gbb_evdev_player_new(const char *name,
+                     GError    **error)
 {
     GbbEvdevPlayer *player;
-    int rc;
     struct libevdev *dev;
     int i;
 
@@ -222,17 +271,11 @@ gbb_evdev_player_new(const char *name)
     for (i = 1; i <= 255 - 8; i++)
         libevdev_enable_event_code(dev, EV_KEY, i, NULL);
     libevdev_enable_event_type(dev, EV_KEY);
-    open("/about to create", O_RDONLY);
-    rc = libevdev_uinput_create_from_device(dev,
-                                            LIBEVDEV_UINPUT_OPEN_MANAGED,
-                                            &player->uidev_keyboard);
-    if (rc != 0) {
-        if (rc == -EBADF)
-            die("Need to be root to simulate events");
-        else
-            die("Can't create uinput: %s\n", strerror(-rc));
-    }
+
+    player->uidev_keyboard = create_uinput(dev, &player->uinput_fd_keyboard, error);
     libevdev_free(dev);
+    if (!player->uidev_keyboard)
+        goto error;
 
     dev = libevdev_new();
     char *mouse_name = g_strconcat(name, " - simulated mouse", NULL);
@@ -250,16 +293,19 @@ gbb_evdev_player_new(const char *name)
     libevdev_enable_event_type(dev, EV_REL);
     libevdev_enable_event_code(dev, EV_REL, REL_WHEEL, NULL);
 
-    rc = libevdev_uinput_create_from_device(dev,
-                                            LIBEVDEV_UINPUT_OPEN_MANAGED,
-                                            &player->uidev_mouse);
-    if (rc != 0)
-        die("Can't create uinput: %s\n", strerror(-rc));
+    player->uidev_mouse = create_uinput(dev, &player->uinput_fd_mouse, error);
     libevdev_free(dev);
+    if (!player->uidev_mouse)
+        goto error;
 
     gbb_event_player_set_ready (GBB_EVENT_PLAYER(player),
                                 libevdev_uinput_get_devnode(player->uidev_keyboard),
                                 libevdev_uinput_get_devnode(player->uidev_mouse));
 
     return player;
+
+error:
+    g_object_unref(player);
+
+    return NULL;
 }

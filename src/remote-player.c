@@ -75,6 +75,7 @@ on_play_reply(GObject      *source_object,
             return;
         }
 
+        g_dbus_error_strip_remote_error(error);
         g_warning("Failed to play:s %s", error->message);
         g_clear_error(&error);
     } else {
@@ -214,6 +215,7 @@ on_create_player_reply(GObject      *source_object,
             return;
         }
 
+        g_dbus_error_strip_remote_error(error);
         die("Error calling CreatePlayer: %s", error->message);
     }
 

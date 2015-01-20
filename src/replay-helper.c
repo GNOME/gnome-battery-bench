@@ -39,11 +39,14 @@ player_destroy(Player *player)
         g_signal_handler_disconnect(player->player, player->finished_connection);
     }
 
-    g_object_unref(player->player);
+    g_clear_object(&player->player);
 
     g_dbus_connection_signal_unsubscribe(player->connection,
                                          player->creator_changed_connection);
-    g_dbus_connection_unregister_object(player->connection, player->registration_id);
+
+    if (player->registration_id)
+        g_dbus_connection_unregister_object(player->connection, player->registration_id);
+
     g_object_unref(player->connection);
     g_free(player->name);
     g_free(player->path);
@@ -234,7 +237,13 @@ on_checked_authorization(GObject      *source_object,
                                                                              on_name_owner_changed,
                                                                              player, NULL);
 
-    player->player = GBB_EVENT_PLAYER(gbb_evdev_player_new(player->name));
+    GbbEvdevPlayer *evdev_player = gbb_evdev_player_new(player->name, &error);
+    if (evdev_player == NULL) {
+        g_dbus_method_invocation_take_error(invocation, error);
+        player_destroy(player);
+        return;
+    }
+    player->player = GBB_EVENT_PLAYER(evdev_player);
 
     player->registration_id = g_dbus_connection_register_object(connection,
                                                                 player->path,
