@@ -163,7 +163,7 @@ play_local(int argc, char **argv)
     GError *error = NULL;
     GbbEventPlayer *player = GBB_EVENT_PLAYER(gbb_evdev_player_new("Gnome Battery Bench Test", &error));
     if (player == NULL)
-        die(error->message);
+        die("%s", error->message);
 
     return do_play(player, argc, argv);
 }
