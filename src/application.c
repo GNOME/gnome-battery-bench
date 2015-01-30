@@ -624,7 +624,7 @@ fill_log_from_run(GbbApplication *application,
             clear_label(application, "energy-full-log");
 
         if (last_state->energy_full_design >= 0)
-            set_label(application, "energy-full-design-log", "%.1fWh", last_state->energy_full);
+            set_label(application, "energy-full-design-log", "%.1fWh", last_state->energy_full_design);
         else
             clear_label(application, "energy-full-design-log");
 
