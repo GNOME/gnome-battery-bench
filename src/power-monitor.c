@@ -442,7 +442,7 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
             if (base->energy_full_design >= 0)
                 statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
         }
-    } else if (current->capacity_now >= 0 && time_elapsed > 0) {
+    } else if (current->charge_now >= 0 && time_elapsed > 0) {
         double charge_used = base->charge_now - current->charge_now;
         if (charge_used > 0) {
             statistics->current = 3600 * (charge_used) / time_elapsed;
