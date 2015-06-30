@@ -148,6 +148,7 @@ battery_poll(Battery *battery)
     battery->charge_full = -1.0;
     battery->charge_full_design = -1.0;
     battery->capacity_now = -1.0;
+    battery->voltage_now = -1.0;
 
     get_file_contents_double (battery->directory, "energy_now", &battery->energy_now, NULL, NULL);
     if (battery->energy_now >= 0) {
@@ -363,7 +364,6 @@ read_state(GbbPowerMonitor *monitor,
         } else if (battery->charge_now >= 0) {
             add_to (&state->charge_now, battery->charge_now);
             add_to (&state->charge_full, battery->charge_full);
-            add_to (&state->voltage_now, battery->voltage_now);
 
             if (battery->charge_full_design >= 0) {
                 if (n_batteries == 0 || state->charge_full_design >= 0)
@@ -374,6 +374,12 @@ read_state(GbbPowerMonitor *monitor,
         } else if (battery->capacity_now >= 0) {
             add_to (&state->capacity_now, battery->capacity_now);
         }
+
+        /* state->voltage_now only makes sense if there is a single battery */
+        if (n_batteries == 0)
+            state->voltage_now = battery->voltage_now;
+        else
+            state->voltage_now = -1.0;
 
         n_batteries += 1;
     }
