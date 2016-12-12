@@ -495,7 +495,8 @@ application_start(GbbApplication *application)
 
     gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), application->run);
 
-    setup_stop_shortcut(application);
+    if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(application->window)))
+        setup_stop_shortcut(application);
 
     gbb_test_runner_set_run(application->runner, application->run);
     gbb_test_runner_start(application->runner);
@@ -866,7 +867,8 @@ on_runner_phase_changed(GbbTestRunner  *runner,
 
         application->test = NULL;
 
-        remove_stop_shortcut(application);
+        if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(application->window)))
+            remove_stop_shortcut(application);
 
         g_object_set(G_OBJECT(application->start_button), "label", "Start", NULL);
 
