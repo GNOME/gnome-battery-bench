@@ -71,4 +71,7 @@ EXTRA_DIST += $(ui_files)
 gnome-battery-bench.gresource.c: $(ui_files)
 
 %.gresource.c : %.gresource.xml
-	$(GLIB_COMPILE_RESOURCES) --generate --target $@ $<
+	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) \
+        --sourcedir="$(srcdir)"               \
+        --generate                            \
+        --target $@ $<

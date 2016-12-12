@@ -8,6 +8,9 @@ test -z "$srcdir" && srcdir=.
         exit 1
 }
 
+olddir=`pwd`
+cd "$srcdir"
+
 PKG_NAME=`autoconf --trace 'AC_INIT:$1' "$srcdir/configure.ac"`
 
 if [ "$#" = 0 -a "x$NOCONFIGURE" = "x" ]; then
@@ -21,6 +24,8 @@ set -x
 aclocal --install || exit 1
 autoreconf --verbose --force --install -Wno-portability || exit 1
 set +x
+
+cd "$olddir"
 
 if [ "$NOCONFIGURE" = "" ]; then
         set -x
