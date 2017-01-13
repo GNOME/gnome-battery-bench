@@ -216,6 +216,12 @@ adapter_free (Adapter *adapter)
 }
 
 static gboolean
+is_adapter(const char *name)
+{
+    return g_str_has_prefix(name, "AC") || g_str_has_prefix(name, "ADP");
+}
+
+static gboolean
 find_power_supplies(GbbPowerMonitor *monitor,
                     GCancellable *cancellable,
                     GError      **error)
@@ -246,7 +252,7 @@ find_power_supplies(GbbPowerMonitor *monitor,
         const char *basename = g_file_info_get_name (info);
         if (g_str_has_prefix (basename, "BAT"))
             monitor->batteries = g_list_prepend (monitor->batteries, battery_new (child));
-        else if (g_str_has_prefix (basename, "AC"))
+        else if (is_adapter (basename))
             monitor->adapters = g_list_prepend (monitor->adapters, adapter_new (child));
     next:
         g_clear_object (&child);
