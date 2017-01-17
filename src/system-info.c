@@ -295,6 +295,61 @@ gbb_system_info_acquire ()
     return info;
 }
 
+void
+gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
+{
+    json_builder_begin_object(builder);
+    json_builder_set_member_name(builder, "hardware");
+    {
+        json_builder_begin_object(builder);
+        json_builder_set_member_name(builder, "vendor");
+        json_builder_add_string_value(builder, info->sys_vendor);
+        json_builder_set_member_name(builder, "version");
+        json_builder_add_string_value(builder, info->product_version);
+        json_builder_set_member_name(builder, "name");
+        json_builder_add_string_value(builder, info->product_name);
+
+        json_builder_set_member_name(builder, "bios");
+        {
+            json_builder_begin_object(builder);
+            json_builder_set_member_name(builder, "version");
+            json_builder_add_string_value(builder, info->bios_version);
+            json_builder_set_member_name(builder, "date");
+            json_builder_add_string_value(builder, info->bios_date);
+            json_builder_set_member_name(builder, "vendor");
+            json_builder_add_string_value(builder, info->bios_vendor);
+            json_builder_end_object(builder);
+        }
+        json_builder_end_object(builder);
+    }
+    json_builder_set_member_name(builder, "software");
+    {
+        json_builder_begin_object(builder);
+        json_builder_set_member_name(builder, "os");
+        {
+            json_builder_begin_object(builder);
+            json_builder_set_member_name(builder, "type");
+            json_builder_add_string_value(builder, info->os_type);
+            json_builder_set_member_name(builder, "kernel");
+            json_builder_add_string_value(builder, info->os_kernel);
+            json_builder_end_object(builder);
+        }
+        json_builder_set_member_name(builder, "gnome");
+        {
+            json_builder_begin_object(builder);
+            json_builder_set_member_name(builder, "version");
+            json_builder_add_string_value(builder, info->gnome_version);
+            json_builder_set_member_name(builder, "distributor");
+            json_builder_add_string_value(builder, info->gnome_distributor);
+            json_builder_set_member_name(builder, "date");
+            json_builder_add_string_value(builder, info->gnome_date);
+            json_builder_end_object(builder);
+        }
+        json_builder_end_object(builder);
+    }
+    json_builder_end_object(builder);
+}
+
 /* GNOME system info */
 /* Everything below has been mostly borrowed from
  * gnome-control-center/panels/info/cc-info-panel.c
