@@ -20,9 +20,70 @@
 #include "remote-player.h"
 #include "event-recorder.h"
 #include "power-monitor.h"
+#include "system-info.h"
 #include "test-runner.h"
 #include "xinput-wait.h"
 #include "util.h"
+
+
+static GOptionEntry info_options[] =
+{
+    { NULL }
+};
+
+static int
+info(int argc, char **argv)
+{
+    g_autoptr(GbbSystemInfo) info = NULL;
+    g_autofree char *sys_vendor;
+    g_autofree char *product_version;
+    g_autofree char *product_name;
+    g_autofree char *bios_vendor;
+    g_autofree char *bios_version;
+    g_autofree char *bios_date;
+    g_autofree char *os_type;
+    g_autofree char *os_kernel;
+    g_autofree char *gnome_version;
+    g_autofree char *gnome_distributor;
+    g_autofree char *gnome_date;
+
+    info = gbb_system_info_acquire();
+
+    g_object_get(info,
+                 "sys-vendor", &sys_vendor,
+                 "product-version", &product_version,
+                 "product-name", &product_name,
+                 "bios-date", &bios_date,
+                 "bios-version", &bios_version,
+                 "bios_vendor", &bios_vendor,
+                 "os-type", &os_type,
+                 "os-kernel", &os_kernel,
+                 "gnome-version", &gnome_version,
+                 "gnome-distributor", &gnome_distributor,
+                 "gnome-date", &gnome_date,
+                 NULL);
+
+    g_print("System information:\n");
+    g_print(" Hardware:\n");
+    g_print("  Vendor: %s\n", sys_vendor);
+    g_print("  Version: %s\n", product_version);
+    g_print("  Name: %s\n", product_name);
+    g_print("  Bios:\n");
+    g_print("   Version: %s\n", bios_version);
+    g_print("   Date: %s\n", bios_date);
+    g_print("   Vendor: %s\n", bios_vendor);
+    g_print(" Software:\n");
+    g_print("  OS:\n");
+    g_print("   Type: %s\n", os_type);
+    g_print("   Kernel: %s\n", os_kernel);
+    g_print("  GNOME:\n");
+    g_print("   Version: %s\n", gnome_version);
+    g_print("   Distributor: %s\n", gnome_distributor);
+    g_print("   Date: %s\n", gnome_date);
+
+    return 0;
+}
+
 
 static GbbPowerState *start_state;
 
@@ -408,6 +469,7 @@ typedef struct {
 } Subcommand;
 
 Subcommand subcommands[] = {
+    { "info",         info_options, NULL, info, 0, 0},
     { "monitor",      monitor_options, NULL, monitor, 0, 0 },
     { "play",         play_options, NULL, play, 1, 1, "FILENAME" },
     { "play-local",   play_options, NULL, play_local, 1, 1, "FILENAME" },
