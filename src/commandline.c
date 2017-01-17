@@ -25,14 +25,15 @@
 #include "xinput-wait.h"
 #include "util.h"
 
-
+static gboolean info_usejson = FALSE;
 static GOptionEntry info_options[] =
 {
+    { "json", 'j', 0, G_OPTION_ARG_NONE, &info_usejson, "Show data in json" },
     { NULL }
 };
 
 static int
-info(int argc, char **argv)
+info_txt(int argc, char **argv)
 {
     g_autoptr(GbbSystemInfo) info = NULL;
     g_autofree char *sys_vendor;
@@ -84,7 +85,45 @@ info(int argc, char **argv)
     return 0;
 }
 
+static int
+info_json(int argc, char **argv)
+{
+    JsonBuilder *builder = json_builder_new();
+    g_autoptr(GbbSystemInfo) info = NULL;
+    char *data = NULL;
 
+    info = gbb_system_info_acquire();
+    gbb_system_info_to_json(info, builder);
+
+    JsonNode *root = json_builder_get_root(builder);
+    JsonGenerator *generator = json_generator_new();
+    json_generator_set_pretty(generator, TRUE);
+    json_generator_set_root(generator, root);
+
+    data = json_generator_to_data (generator, NULL);
+
+    g_object_unref(generator);
+    json_node_free(root);
+    g_object_unref(builder);
+
+    if (data == NULL) {
+        return -1;
+    }
+
+    g_print("%s", data);
+    g_free(data);
+    return 0;
+}
+
+static int
+info(int argc, char **argv)
+{
+    if (info_usejson) {
+        return info_json(argc, argv);
+    } else {
+        return info_txt(argc, argv);
+    }
+}
 static GbbPowerState *start_state;
 
 static void
