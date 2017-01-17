@@ -25,6 +25,8 @@ client_sources =				\
 	event-recorder.h			\
 	power-monitor.c				\
 	power-monitor.h				\
+	system-info.h				\
+	system-info.c				\
 	system-state.c				\
 	system-state.h				\
 	test-run.c				\
@@ -34,7 +36,7 @@ client_sources =				\
 	xinput-wait.c				\
 	xinput-wait.h
 
-gnome_battery_bench_CPPFLAGS = $(APPLICATION_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
+gnome_battery_bench_CPPFLAGS = $(APPLICATION_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\" -DDATADIR=\"$(datadir)\"
 gnome_battery_bench_LDADD = $(APPLICATION_LIBS)
 
 gnome_battery_bench_SOURCES =			\
@@ -48,7 +50,7 @@ gnome_battery_bench_SOURCES =			\
 	util-gtk.h				\
 	gnome-battery-bench.gresource.c
 
-gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
+gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\" -DDATADIR=\"$(datadir)\"
 gbb_LDADD = $(COMMANDLINE_LIBS)
 
 gbb_SOURCES =					\
