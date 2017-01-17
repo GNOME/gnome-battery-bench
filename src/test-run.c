@@ -6,6 +6,7 @@
 #include <json-glib/json-glib.h>
 
 #include "event-log.h"
+#include "system-info.h"
 #include "test-run.h"
 #include "util.h"
 
@@ -335,6 +336,11 @@ gbb_test_run_write_to_file(GbbTestRun *run,
         g_date_time_unref(start);
         g_free(start_string);
     }
+
+    /* probably better to do that when we create the run */
+    g_autoptr(GbbSystemInfo) info = gbb_system_info_acquire();
+    json_builder_set_member_name(builder, "system-info");
+    gbb_system_info_to_json(info, builder);
 
     const GbbPowerState *start_state = gbb_test_run_get_start_state(run);
     const GbbPowerState *end_state = gbb_test_run_get_last_state(run);
