@@ -44,6 +44,7 @@ info_txt(int argc, char **argv)
     g_autofree char *bios_date;
     g_auto(GStrv)    cpu_info;
     guint            cpu_number;
+    guint64          mem_total;
     g_autofree char *os_type;
     g_autofree char *os_kernel;
     g_autofree char *gnome_version;
@@ -61,6 +62,7 @@ info_txt(int argc, char **argv)
                  "bios_vendor", &bios_vendor,
                  "cpu-number", &cpu_number,
                  "cpu-info", &cpu_info,
+                 "mem-total", &mem_total,
                  "os-type", &os_type,
                  "os-kernel", &os_kernel,
                  "gnome-version", &gnome_version,
@@ -78,6 +80,8 @@ info_txt(int argc, char **argv)
     for (int i = 0; i < g_strv_length(cpu_info); i++) {
         g_print("   Info [%d]: %s\n", i, cpu_info[i]);
     }
+    g_print("  Memory:\n");
+    g_print("   Total: %" G_GUINT64_FORMAT " kB\n", mem_total);
     g_print("  Bios:\n");
     g_print("   Version: %s\n", bios_version);
     g_print("   Date: %s\n", bios_date);

@@ -25,6 +25,8 @@ struct _GbbSystemInfo {
     guint cpu_number;
     GStrv cpu_info;
 
+    guint64 mem_total;
+
     /* Software */
 
     /* OS */
@@ -50,6 +52,7 @@ enum {
 
     PROP_CPU_NUMBER,
     PROP_CPU_INFO,
+    PROP_MEM_TOTAL,
 
     PROP_OS_TYPE,
     PROP_OS_KERNEL,
@@ -132,6 +135,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
         g_value_set_boxed(value, info->cpu_info);
         break;
 
+    case PROP_MEM_TOTAL:
+        g_value_set_uint64(value, info->mem_total);
+        break;
+
     case PROP_OS_TYPE:
         g_value_set_string(value, info->os_type);
         break;
@@ -210,6 +217,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                                                         NULL, NULL,
                                                         G_TYPE_STRV,
                                                         G_PARAM_READABLE));
+    g_object_class_install_property (gobject_class,
+                                     PROP_MEM_TOTAL,
+                                     g_param_spec_uint64 ("mem-total",
+                                                          NULL, NULL,
+                                                          0, G_MAXUINT64, 0,
+                                                          G_PARAM_READABLE));
     g_object_class_install_property (gobject_class,
                                      PROP_OS_KERNEL,
                                      g_param_spec_string ("os-kernel",
@@ -304,6 +317,15 @@ read_kernel_version(void)
     return g_strdup(comps[2]);
 }
 
+static void
+report_format_error(const char *filename, const char *message)
+{
+    g_log_structured (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                      "MESSAGE_ID", "3a2690a163c5465bb9ba0cab229bf3cf",
+                      "MESSAGE", "Format error: while parsing '%s': %s.",
+                      filename, message);
+}
+
 static GStrv
 read_cpu_info(guint *ncpus)
 {
@@ -335,10 +357,8 @@ read_cpu_info(guint *ncpus)
 
         pos = g_strstr_len(entry, -1, ":");
         if (pos == NULL) {
-              g_log_structured (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                                "MESSAGE_ID", "3a2690a163c5465bb9ba0cab229bf3cf",
-                                "MESSAGE", "Format error: while parsing '/proc/cpuinfo': expected a ':'.");
-              continue;
+            report_format_error("/proc/cpuinfo", "expected a ':'");
+            continue;
         }
         pos++;
 
@@ -369,6 +389,54 @@ read_cpu_info(guint *ncpus)
     return models;
 }
 
+static guint64
+read_mem_info(void)
+{
+    g_autofree char *data = read_sysfs_string("/proc/meminfo");
+    g_auto(GStrv) kv = NULL;
+    const char *total = NULL;
+    const char *pos;
+    char *endptr;
+    guint64 res;
+    guint i;
+
+    if (data == NULL) {
+        return 0;
+    }
+
+    kv = g_strsplit(data, "\n", -1);
+    for (i = 0; i < g_strv_length(kv); i++) {
+        if (g_str_has_prefix(kv[i], "MemTotal:")) {
+            total = kv[i];
+            break;
+        }
+    }
+
+    if (total == NULL) {
+        report_format_error("/proc/meminfo", "'MemTotal' not found");
+        return 0;
+    }
+
+    pos = g_strstr_len(total, -1, ":");
+    if (pos == NULL) {
+        report_format_error("/proc/meminfo", "MemTotal: expected a ':'");
+        return 0;
+    }
+
+    do {
+        pos++;
+    } while (*pos != '\0' && *pos == ' ');
+
+    res = g_ascii_strtoull(pos, &endptr, 10);
+
+    if (pos == endptr) {
+        report_format_error("/proc/meminfo", "MemTotal: could not parse number");
+        return 0;
+    }
+
+    return res;
+}
+
 static void gbb_system_info_init (GbbSystemInfo *info)
 {
     read_dmi_info(info);
@@ -378,6 +446,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->os_type = get_os_type();
     info->os_kernel = read_kernel_version();
     info->cpu_info = read_cpu_info(&info->cpu_number);
+    info->mem_total = read_mem_info();
 }
 
 GbbSystemInfo *
@@ -427,6 +496,15 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_array(builder);
             json_builder_end_object(builder);
         }
+
+        json_builder_set_member_name(builder, "memory");
+        {
+            json_builder_begin_object(builder);
+            json_builder_set_member_name(builder, "total");
+            json_builder_add_int_value(builder, info->mem_total);
+            json_builder_end_object(builder);
+        }
+
         json_builder_end_object(builder);
     }
     json_builder_set_member_name(builder, "software");
