@@ -21,6 +21,10 @@ struct _GbbSystemInfo {
     char *bios_date;
     char *bios_vendor;
 
+    /*  CPU*/
+    guint cpu_number;
+    GStrv cpu_info;
+
     /* Software */
 
     /* OS */
@@ -43,6 +47,9 @@ enum {
     PROP_BIOS_VERSION,
     PROP_BIOS_VENDOR,
     PROP_BIOS_DATE,
+
+    PROP_CPU_NUMBER,
+    PROP_CPU_INFO,
 
     PROP_OS_TYPE,
     PROP_OS_KERNEL,
@@ -74,6 +81,8 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_free(info->bios_version);
     g_free(info->bios_date);
     g_free(info->bios_vendor);
+
+    g_strfreev(info->cpu_info);
 
     g_free(info->os_type);
     g_free(info->os_kernel);
@@ -113,6 +122,14 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_BIOS_VENDOR:
         g_value_set_string(value, info->bios_vendor);
+        break;
+
+    case PROP_CPU_NUMBER:
+        g_value_set_uint(value, info->cpu_number);
+        break;
+
+    case PROP_CPU_INFO:
+        g_value_set_boxed(value, info->cpu_info);
         break;
 
     case PROP_OS_TYPE:
@@ -181,6 +198,18 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                                                           NULL, NULL,
                                                           NULL,
                                                           G_PARAM_READABLE));
+    g_object_class_install_property (gobject_class,
+                                     PROP_CPU_NUMBER,
+                                     g_param_spec_uint ("cpu-number",
+                                                        NULL, NULL,
+                                                        0, G_MAXUINT, 0,
+                                                        G_PARAM_READABLE));
+    g_object_class_install_property (gobject_class,
+                                     PROP_CPU_INFO,
+                                     g_param_spec_boxed("cpu-info",
+                                                        NULL, NULL,
+                                                        G_TYPE_STRV,
+                                                        G_PARAM_READABLE));
     g_object_class_install_property (gobject_class,
                                      PROP_OS_KERNEL,
                                      g_param_spec_string ("os-kernel",
@@ -275,6 +304,70 @@ read_kernel_version(void)
     return g_strdup(comps[2]);
 }
 
+static GStrv
+read_cpu_info(guint *ncpus)
+{
+    g_autofree char *data = read_sysfs_string("/proc/cpuinfo");
+    g_autoptr(GHashTable) cpus = NULL;
+    g_auto(GStrv) kv = NULL;
+    GStrv models = NULL;
+    gsize i, n = 0;
+    gpointer key, val;
+    GHashTableIter iter;
+
+    if (data == NULL) {
+        models = g_new(char *, 2);
+        models[0] = g_strdup("Unknown");
+        models[1] = NULL;
+        *ncpus = 1;
+        return models;
+    }
+
+    cpus = g_hash_table_new (g_str_hash, g_str_equal);
+
+    kv = g_strsplit(data, "\n", -1);
+    for (i = 0; i < g_strv_length(kv); i++) {
+        const char *entry = kv[i];
+        const char *pos;
+        if (!g_str_has_prefix(entry, "model name")) {
+            continue;
+        }
+
+        pos = g_strstr_len(entry, -1, ":");
+        if (pos == NULL) {
+              g_log_structured (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                                "MESSAGE_ID", "3a2690a163c5465bb9ba0cab229bf3cf",
+                                "MESSAGE", "Format error: while parsing '/proc/cpuinfo': expected a ':'.");
+              continue;
+        }
+        pos++;
+
+        while (*pos == ' ' && *pos != '\n') {
+            pos++;
+        }
+
+        val = g_hash_table_lookup(cpus, pos);
+        if (val == NULL) {
+            g_hash_table_insert(cpus, (gpointer) pos, GINT_TO_POINTER(1));
+        } else {
+            val = GINT_TO_POINTER(GPOINTER_TO_INT(val) + 1);
+            g_hash_table_replace(cpus, (gpointer) pos, val);
+        }
+    }
+
+    n = i = 0;
+    g_hash_table_iter_init (&iter, cpus);
+    models = (GStrv) g_new(char *, g_hash_table_size(cpus) + 1);
+    while (g_hash_table_iter_next (&iter, &key, &val)) {
+        int k = GPOINTER_TO_INT(val);
+        models[i] = g_strdup_printf("%s [%d]", (char *) key, k);
+        n += k;
+        i++;
+    }
+    models[i] = NULL;
+    *ncpus = n;
+    return models;
+}
 
 static void gbb_system_info_init (GbbSystemInfo *info)
 {
@@ -284,7 +377,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
                        &info->gnome_date);
     info->os_type = get_os_type();
     info->os_kernel = read_kernel_version();
-
+    info->cpu_info = read_cpu_info(&info->cpu_number);
 }
 
 GbbSystemInfo *
@@ -318,6 +411,20 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_add_string_value(builder, info->bios_date);
             json_builder_set_member_name(builder, "vendor");
             json_builder_add_string_value(builder, info->bios_vendor);
+            json_builder_end_object(builder);
+        }
+
+        json_builder_set_member_name(builder, "cpu");
+        {
+            json_builder_begin_object(builder);
+            json_builder_set_member_name(builder, "number");
+            json_builder_add_int_value(builder, info->cpu_number);
+            json_builder_set_member_name(builder, "info");
+            json_builder_begin_array(builder);
+            for (int i = 0; i < g_strv_length(info->cpu_info); i++) {
+                json_builder_add_string_value(builder, info->cpu_info[i]);
+            }
+            json_builder_end_array(builder);
             json_builder_end_object(builder);
         }
         json_builder_end_object(builder);
