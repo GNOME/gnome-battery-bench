@@ -5,6 +5,7 @@
 aclocal.m4
 autom4te.cache/
 compile
+compile_commands.json
 config.log
 config.status
 configure
