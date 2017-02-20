@@ -15,7 +15,7 @@ PKG_PROG_PKG_CONFIG([0.22])
 
 GLIB_GSETTINGS
 
-base_packages="libevdev glib-2.0 gio-unix-2.0"
+base_packages="libevdev glib-2.0 >= 2.44.0 gio-unix-2.0"
 x_packages="x11 xi xtst"
 
 AC_PROG_CC
