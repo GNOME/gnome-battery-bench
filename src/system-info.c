@@ -671,41 +671,41 @@ load_gnome_version (char **version,
     VersionData         *data;
     gboolean             ret;
 
-  ret = FALSE;
+    ret = FALSE;
 
-  error = NULL;
-  if (!g_file_get_contents (DATADIR "/gnome/gnome-version.xml",
-                            &contents,
-                            &length,
-                            &error))
-    return FALSE;
+    error = NULL;
+    if (!g_file_get_contents (DATADIR "/gnome/gnome-version.xml",
+                              &contents,
+                              &length,
+                              &error))
+        return FALSE;
 
-  data = g_new0 (VersionData, 1);
-  ctx = g_markup_parse_context_new (&version_parser, 0, data, NULL);
+    data = g_new0 (VersionData, 1);
+    ctx = g_markup_parse_context_new (&version_parser, 0, data, NULL);
 
-  if (!g_markup_parse_context_parse (ctx, contents, length, &error)) {
-      g_warning ("Invalid version file: '%s'", error->message);
-  } else {
-      if (version != NULL)
-          *version = g_strdup_printf ("%s.%s.%s", data->major, data->minor, data->micro);
-      if (distributor != NULL)
-          *distributor = g_strdup (data->distributor);
-      if (date != NULL)
-          *date = g_strdup (data->date);
+    if (!g_markup_parse_context_parse (ctx, contents, length, &error)) {
+        g_warning ("Invalid version file: '%s'", error->message);
+    } else {
+        if (version != NULL)
+            *version = g_strdup_printf ("%s.%s.%s", data->major, data->minor, data->micro);
+        if (distributor != NULL)
+            *distributor = g_strdup (data->distributor);
+        if (date != NULL)
+            *date = g_strdup (data->date);
 
-      ret = TRUE;
+        ret = TRUE;
     }
 
-  g_markup_parse_context_free (ctx);
-  g_free (data->major);
-  g_free (data->minor);
-  g_free (data->micro);
-  g_free (data->distributor);
-  g_free (data->date);
-  g_free (data);
-  g_free (contents);
+    g_markup_parse_context_free (ctx);
+    g_free (data->major);
+    g_free (data->minor);
+    g_free (data->micro);
+    g_free (data->distributor);
+    g_free (data->date);
+    g_free (data);
+    g_free (contents);
 
-  return ret;
+    return ret;
 };
 
 static GHashTable*
