@@ -711,54 +711,52 @@ load_gnome_version (char **version,
 static GHashTable*
 get_os_info (void)
 {
-    GHashTable *hashtable;
-    gchar *buffer;
+    GHashTable *hashtable = NULL;
+    g_autofree gchar *buffer = NULL;
+    g_auto(GStrv) lines = NULL;
+    g_autoptr(GError) error = NULL;
+    gint i;
 
-    hashtable = NULL;
+    if (! g_file_get_contents ("/etc/os-release", &buffer, NULL, &error)) {
+        g_warning("Failed to read '/etc/os-release': %s", error->message);
+        return NULL;
+    }
 
-    if (g_file_get_contents ("/etc/os-release", &buffer, NULL, NULL)) {
-        gchar **lines;
-        gint i;
+    lines = g_strsplit (buffer, "\n", -1);
 
-        lines = g_strsplit (buffer, "\n", -1);
+    for (i = 0; lines[i] != NULL; i++) {
+        gchar *delimiter, *key, *value;
 
-        for (i = 0; lines[i] != NULL; i++) {
-            gchar *delimiter, *key, *value;
+        /* Initialize the hash table if needed */
+        if (!hashtable)
+            hashtable = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
-            /* Initialize the hash table if needed */
-          if (!hashtable)
-              hashtable = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+        delimiter = strstr (lines[i], "=");
+        value = NULL;
+        key = NULL;
 
-          delimiter = strstr (lines[i], "=");
-          value = NULL;
-          key = NULL;
+        if (delimiter != NULL) {
+            gint size;
 
-          if (delimiter != NULL) {
-              gint size;
+            key = g_strndup (lines[i], delimiter - lines[i]);
 
-              key = g_strndup (lines[i], delimiter - lines[i]);
+            /* Jump the '=' */
+            delimiter += strlen ("=");
 
-              /* Jump the '=' */
-              delimiter += strlen ("=");
+            /* Eventually jump the ' " ' character */
+            if (g_str_has_prefix (delimiter, "\""))
+                delimiter += strlen ("\"");
 
-              /* Eventually jump the ' " ' character */
-              if (g_str_has_prefix (delimiter, "\""))
-                  delimiter += strlen ("\"");
+            size = strlen (delimiter);
 
-              size = strlen (delimiter);
+            /* Don't consider the last ' " ' too */
+            if (g_str_has_suffix (delimiter, "\""))
+                size -= strlen ("\"");
 
-              /* Don't consider the last ' " ' too */
-              if (g_str_has_suffix (delimiter, "\""))
-                  size -= strlen ("\"");
+            value = g_strndup (delimiter, size);
 
-              value = g_strndup (delimiter, size);
-
-              g_hash_table_insert (hashtable, key, value);
-          }
+            g_hash_table_insert (hashtable, key, value);
         }
-
-        g_strfreev (lines);
-        g_free (buffer);
     }
 
     return hashtable;
@@ -769,6 +767,7 @@ get_os_type (void)
 {
     GHashTable *os_info;
     gchar *name, *result, *build_id;
+    char base[255];
     int bits;
 
     os_info = get_os_info ();
@@ -779,21 +778,19 @@ get_os_type (void)
     name = g_hash_table_lookup (os_info, "PRETTY_NAME");
     build_id = g_hash_table_lookup (os_info, "BUILD_ID");
 
-    if (GLIB_SIZEOF_VOID_P == 8)
-        bits = 64;
+    bits = GLIB_SIZEOF_VOID_P == 8 ? 64 : 32;
+
+    if (name)
+        g_snprintf(base, sizeof(base), "%s %d-bit", name, bits);
     else
-        bits = 32;
+        g_snprintf(base, sizeof(base), "%d-bit", bits);
 
     if (build_id) {
-        if (name)
-            result = g_strdup_printf ("%s %d-bit (Build ID: %s)", name, bits, build_id);
-        else
-            result = g_strdup_printf ("%d-bit (Build ID: %s)", bits, build_id);
+        char idstr[255];
+        g_snprintf(idstr, sizeof(idstr), " (Build ID: %s)", build_id);
+        result = g_strconcat(base, idstr, NULL);
     } else {
-      if (name)
-        result = g_strdup_printf ("%s %d-bit", name, bits);
-      else
-        result = g_strdup_printf ("%d-bit", bits);
+        result = g_strdup(base);
     }
 
     g_clear_pointer (&os_info, g_hash_table_destroy);
