@@ -27,6 +27,9 @@ struct _GbbSystemInfo {
 
     guint64 mem_total;
 
+    /* GPU/Renderer */
+    char *renderer;
+
     /* Software */
 
     /* OS */
@@ -53,6 +56,8 @@ enum {
     PROP_CPU_NUMBER,
     PROP_CPU_INFO,
     PROP_MEM_TOTAL,
+
+    PROP_RENDERER,
 
     PROP_OS_TYPE,
     PROP_OS_KERNEL,
@@ -139,6 +144,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
         g_value_set_uint64(value, info->mem_total);
         break;
 
+    case PROP_RENDERER:
+        g_value_set_string(value, info->renderer);
+        break;
+
     case PROP_OS_TYPE:
         g_value_set_string(value, info->os_type);
         break;
@@ -222,6 +231,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                                      g_param_spec_uint64 ("mem-total",
                                                           NULL, NULL,
                                                           0, G_MAXUINT64, 0,
+                                                          G_PARAM_READABLE));
+    g_object_class_install_property (gobject_class,
+                                     PROP_RENDERER,
+                                     g_param_spec_string ("renderer",
+                                                          NULL, NULL,
+                                                          NULL,
                                                           G_PARAM_READABLE));
     g_object_class_install_property (gobject_class,
                                      PROP_OS_KERNEL,
@@ -437,6 +452,41 @@ read_mem_info(void)
     return res;
 }
 
+static char *
+get_renderer_info (void)
+{
+    g_autoptr(GDBusProxy) proxy;
+    g_autoptr(GVariant) var = NULL;
+    g_autoptr(GError) error = NULL;
+    const char *renderer = "Unknown";
+
+    proxy = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION,
+                                          G_DBUS_PROXY_FLAGS_NONE,
+                                          NULL,
+                                          "org.gnome.SessionManager",
+                                          "/org/gnome/SessionManager",
+                                          "org.gnome.SessionManager",
+                                          NULL, &error);
+
+    if (error != NULL) {
+        g_warning("Failed to connect to org.gnome.SessionManager: %s",
+                  error->message);
+        goto out;
+    }
+
+    var = g_dbus_proxy_get_cached_property(proxy, "Renderer");
+    if (!var) {
+        g_warning("Failed to obtain 'Renderer' property from org.gnome.SessionManager");
+        goto out;
+    }
+
+    renderer = g_variant_get_string(var, NULL);
+
+out:
+    return g_strstrip(g_strdup(renderer));
+}
+
+
 static void gbb_system_info_init (GbbSystemInfo *info)
 {
     read_dmi_info(info);
@@ -447,6 +497,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->os_kernel = read_kernel_version();
     info->cpu_info = read_cpu_info(&info->cpu_number);
     info->mem_total = read_mem_info();
+    info->renderer = get_renderer_info();
 }
 
 GbbSystemInfo *
@@ -496,6 +547,9 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_array(builder);
             json_builder_end_object(builder);
         }
+
+        json_builder_set_member_name(builder, "renderer");
+        json_builder_add_string_value(builder, info->renderer);
 
         json_builder_set_member_name(builder, "memory");
         {
