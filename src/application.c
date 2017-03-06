@@ -17,6 +17,10 @@
 #include "test-runner.h"
 #include "util.h"
 
+#define LOGIND_DBUS_NAME        "org.freedesktop.login1"
+#define LOGIND_DBUS_PATH        "/org/freedesktop/login1"
+#define LOGIND_DBUS_INTERFACE   "org.freedesktop.login1.Manager"
+
 struct _GbbApplication {
     GtkApplication parent;
     GbbTestRunner *runner;
@@ -49,6 +53,9 @@ struct _GbbApplication {
 
     GbbBatteryTest *test;
     GbbTestRun *run;
+
+    GDBusProxy *logind;
+    guint       sleep_id;
 };
 
 struct _GbbApplicationClass {
@@ -62,6 +69,17 @@ G_DEFINE_TYPE(GbbApplication, gbb_application, GTK_TYPE_APPLICATION)
 static void
 gbb_application_finalize(GObject *object)
 {
+    GbbApplication *application = GBB_APPLICATION (object);
+    if (application->logind) {
+        GDBusConnection *bus;
+
+        bus = g_dbus_proxy_get_connection (application->logind);
+
+        if (application->sleep_id)
+            g_dbus_connection_signal_unsubscribe (bus, application->sleep_id);
+
+        g_clear_object (&application->logind);
+    }
 }
 
 static void
@@ -442,6 +460,8 @@ write_run_to_disk(GbbApplication *application,
                   GbbTestRun     *run)
 {
     GError *error = NULL;
+
+    g_debug("Writing %s to disk", gbb_test_run_get_name(application->run));
 
     if (!g_file_query_exists(application->log_folder, NULL)) {
         if (!g_file_make_directory_with_parents(application->log_folder, NULL, &error)) {
@@ -881,8 +901,59 @@ on_runner_phase_changed(GbbTestRunner  *runner,
 }
 
 static void
+gbb_application_prepare_for_sleep (GDBusConnection *connection,
+                                   const gchar     *sender_name,
+                                   const gchar     *object_path,
+                                   const gchar     *interface_name,
+                                   const gchar     *signal_name,
+                                   GVariant        *parameters,
+                                   gpointer         user_data)
+{
+    GbbApplication *application = GBB_APPLICATION (user_data);
+    GbbTestRunner *runner = application->runner;
+    GbbTestRun *run;
+    GbbTestPhase phase;
+    gboolean will_sleep;
+
+    if (!g_variant_is_of_type (parameters, G_VARIANT_TYPE ("(b)"))) {
+        g_warning ("logind PrepareForSleep has unexpected parameter(s)");
+        return;
+    }
+
+    g_variant_get (parameters, "(b)", &will_sleep);
+
+    if (!will_sleep) {
+        /* not interesting for now */
+        return;
+    }
+
+    g_debug("Preparing for sleep");
+
+    phase = gbb_test_runner_get_phase(runner);
+    if (phase == GBB_TEST_PHASE_STOPPED) {
+        return;
+    }
+
+    run = gbb_test_runner_get_run(runner);
+    if (run && phase == GBB_TEST_PHASE_RUNNING) {
+        /* if we are not stopped, we should have a run,
+         * but let's be sure.
+         * This should also be called again by the the callback
+         * to on_runner_phase_changed, but we want to make sure
+         * we have the data on disc */
+        write_run_to_disk(application, run);
+    }
+
+    gbb_test_runner_stop(runner);
+}
+
+static void
 gbb_application_init(GbbApplication *application)
 {
+    GError *error = NULL;
+    GDBusConnection *bus;
+    guint sleep_id;
+
     application->runner = gbb_test_runner_new();
     g_signal_connect(application->runner, "phase-changed",
                      G_CALLBACK(on_runner_phase_changed), application);
@@ -896,6 +967,36 @@ gbb_application_init(GbbApplication *application)
     application->player = gbb_test_runner_get_event_player(application->runner);
     g_signal_connect(application->player, "ready",
                      G_CALLBACK(on_player_ready), application);
+
+    application->logind = g_dbus_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
+                                                         0,
+                                                         NULL,
+                                                         LOGIND_DBUS_NAME,
+                                                         LOGIND_DBUS_PATH,
+                                                         LOGIND_DBUS_INTERFACE,
+                                                         NULL,
+                                                         &error);
+    if (application->logind == NULL) {
+        g_warning("Could not create logind proxy. Sleep/Resume signals not enabled. (%s)",
+                  error->message);
+        g_error_free(error);
+        return;
+    }
+    /* the following code needs to have a valid logind proxy */
+    bus = g_dbus_proxy_get_connection (application->logind);
+    sleep_id = g_dbus_connection_signal_subscribe (bus,
+                                                   LOGIND_DBUS_NAME,
+                                                   LOGIND_DBUS_INTERFACE,
+                                                   "PrepareForSleep",
+                                                   LOGIND_DBUS_PATH,
+                                                   NULL,
+                                                   G_DBUS_SIGNAL_FLAGS_NONE,
+                                                   gbb_application_prepare_for_sleep,
+                                                   application,
+                                                   NULL);
+    application->sleep_id = sleep_id;
+
+    g_debug("Gbb initialized");
 }
 
 GbbApplication *
