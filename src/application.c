@@ -1014,11 +1014,16 @@ gbb_application_prepare_for_sleep (GDBusConnection *connection,
         write_run_to_disk(application, run);
     }
 
-    /* stopping the run via gbb_test_runner_stop()
+    /* We force stop the test runner, so the epilogue does
+     * not get played, because it is very likely that the
+     * screen has already been locked by gnome-shell and
+     * we would play the epilogue on the lock-screen.
+     *
+     * stopping the run via gbb_test_runner_stop()
      *   -> on_runner_phase_changed() callback
      *   -> release inhibitor lock
      */
-    gbb_test_runner_stop(runner);
+    gbb_test_runner_force_stop(runner);
 }
 
 static void
