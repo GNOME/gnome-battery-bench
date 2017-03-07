@@ -6,6 +6,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <gio/gunixfdlist.h>
+
 #include <gtk/gtk.h>
 
 #include <gdk/gdkx.h>
@@ -56,6 +58,7 @@ struct _GbbApplication {
 
     GDBusProxy *logind;
     guint       sleep_id;
+    gint        inhibitor_fd;
 };
 
 struct _GbbApplicationClass {
@@ -63,6 +66,8 @@ struct _GbbApplicationClass {
 };
 
 static void application_stop(GbbApplication *application);
+static void gbb_application_inhibitor_lock_release(GbbApplication *application);
+static gboolean gbb_application_inhibitor_lock_take(GbbApplication *application);
 
 G_DEFINE_TYPE(GbbApplication, gbb_application, GTK_TYPE_APPLICATION)
 
@@ -518,6 +523,7 @@ application_start(GbbApplication *application)
     if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(application->window)))
         setup_stop_shortcut(application);
 
+    gbb_application_inhibitor_lock_take(application);
     gbb_test_runner_set_run(application->runner, application->run);
     gbb_test_runner_start(application->runner);
 }
@@ -877,7 +883,10 @@ static void
 on_runner_phase_changed(GbbTestRunner  *runner,
                         GbbApplication *application)
 {
-    if (gbb_test_runner_get_phase(runner) == GBB_TEST_PHASE_STOPPED) {
+
+    GbbTestPhase phase = gbb_test_runner_get_phase(runner);
+
+    if (phase == GBB_TEST_PHASE_STOPPED) {
         const GbbPowerState *start_state = gbb_test_run_get_start_state(application->run);
         const GbbPowerState *last_state = gbb_test_run_get_last_state(application->run);
         if (last_state != start_state) {
@@ -894,10 +903,70 @@ on_runner_phase_changed(GbbTestRunner  *runner,
 
         if (application->exit_requested)
             gtk_widget_destroy(application->window);
+
+        gbb_application_inhibitor_lock_release(application);
     }
 
     update_sensitive(application);
     update_labels(application);
+}
+
+static void
+gbb_application_inhibitor_lock_release(GbbApplication *application)
+{
+    if (application->inhibitor_fd == -1) {
+        return;
+    }
+
+    close (application->inhibitor_fd);
+    application->inhibitor_fd = -1;
+
+    g_debug ("Released inhibitor lock");
+}
+
+static gboolean
+gbb_application_inhibitor_lock_take(GbbApplication *application)
+{
+    GVariant *out, *input;
+    GUnixFDList *fds;
+    GError *error = NULL;
+
+    if (application->inhibitor_fd > -1) {
+        return TRUE;
+    }
+
+    input = g_variant_new ("(ssss)",
+                           "sleep",                /* what */
+                           "GNOME Battery Bench",  /* who */
+                           "Battery test ongoing", /* why */
+                           "delay");               /* mode */
+
+    out = g_dbus_proxy_call_with_unix_fd_list_sync (application->logind,
+                                                    "Inhibit",
+                                                    input,
+                                                    G_DBUS_CALL_FLAGS_NONE,
+                                                    -1,
+                                                    NULL,
+                                                    &fds,
+                                                    NULL,
+                                                    &error);
+    if (out == NULL) {
+        g_warning ("Could not acquire inhibitor lock: %s", error->message);
+        return FALSE;
+    }
+
+    if (g_unix_fd_list_get_length (fds) != 1) {
+        g_warning ("Unexpected values returned by logind's 'Inhibit'");
+        g_variant_unref (out);
+        return FALSE;
+    }
+
+    application->inhibitor_fd = g_unix_fd_list_get (fds, 0, NULL);
+    g_variant_unref (out);
+
+    g_debug ("Acquired inhibitor lock (%i)", application->inhibitor_fd);
+
+    return TRUE;
 }
 
 static void
@@ -931,6 +1000,7 @@ gbb_application_prepare_for_sleep (GDBusConnection *connection,
 
     phase = gbb_test_runner_get_phase(runner);
     if (phase == GBB_TEST_PHASE_STOPPED) {
+        /* if we are stopped, we don't have a inhibitor lock */
         return;
     }
 
@@ -944,6 +1014,10 @@ gbb_application_prepare_for_sleep (GDBusConnection *connection,
         write_run_to_disk(application, run);
     }
 
+    /* stopping the run via gbb_test_runner_stop()
+     *   -> on_runner_phase_changed() callback
+     *   -> release inhibitor lock
+     */
     gbb_test_runner_stop(runner);
 }
 
@@ -967,6 +1041,8 @@ gbb_application_init(GbbApplication *application)
     application->player = gbb_test_runner_get_event_player(application->runner);
     g_signal_connect(application->player, "ready",
                      G_CALLBACK(on_player_ready), application);
+
+    application->inhibitor_fd = -1;
 
     application->logind = g_dbus_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
                                                          0,
