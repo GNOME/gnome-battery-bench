@@ -16,6 +16,7 @@ struct _GbbTestRunner {
 
     GbbTestPhase phase;
     gboolean stop_requested;
+    gboolean force_stop;
 };
 
 struct _GbbTestRunnerClass {
@@ -65,6 +66,12 @@ static void
 on_player_finished(GbbEventPlayer *player,
                    GbbTestRunner  *runner)
 {
+    if (runner->force_stop) {
+        runner->force_stop = FALSE;
+        runner_set_stopped(runner);
+        return;
+    }
+
     if (runner->phase == GBB_TEST_PHASE_PROLOGUE) {
         runner_set_phase(runner, GBB_TEST_PHASE_WAITING);
 
@@ -224,5 +231,36 @@ gbb_test_runner_stop(GbbTestRunner *runner)
         }
     } else if (runner->phase == GBB_TEST_PHASE_PROLOGUE) {
         runner->stop_requested = TRUE;
+    }
+}
+
+void
+gbb_test_runner_force_stop(GbbTestRunner *runner)
+{
+    switch (runner->phase) {
+    case GBB_TEST_PHASE_STOPPED:
+        /* Nothing to do here */
+        return;
+
+    case GBB_TEST_PHASE_PROLOGUE:
+    case GBB_TEST_PHASE_RUNNING:
+    case GBB_TEST_PHASE_EPILOGUE:
+        /* Player is active in these phases, needs to
+         * be stopped. */
+        gbb_event_player_stop(runner->player);
+        runner_set_phase(runner, GBB_TEST_PHASE_STOPPING);
+
+        /* FALLTHROUGH to set runner->force_stop */
+    case GBB_TEST_PHASE_STOPPING:
+        /* We are stopping the player already,
+         * but we must not play the epilogue */
+        runner->force_stop = TRUE;
+        break;
+
+    case GBB_TEST_PHASE_WAITING:
+        /* No active player, transition directly to the
+         * STOPPED phase. */
+        runner_set_phase(runner, GBB_TEST_PHASE_STOPPED);
+        break;
     }
 }

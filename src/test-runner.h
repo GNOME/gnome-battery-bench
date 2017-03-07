@@ -42,6 +42,7 @@ GbbTestRun *gbb_test_runner_get_run(GbbTestRunner *runner);
 
 void gbb_test_runner_start(GbbTestRunner *runner);
 void gbb_test_runner_stop (GbbTestRunner *runner);
+void gbb_test_runner_force_stop(GbbTestRunner *runner);
 
 #endif /* __TEST_RUNNER_H__ */
 
