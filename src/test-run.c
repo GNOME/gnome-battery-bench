@@ -428,7 +428,16 @@ gbb_test_run_write_to_file(GbbTestRun *run,
     json_generator_set_pretty(generator, TRUE);
     json_generator_set_root(generator, root);
 
-    gboolean success = json_generator_to_file (generator, filename, error);
+    /* Small hack to force a fsync() on the file: pre-create the file
+     * with non-zero content which will make g_file_set_contents()
+     * call fsync() since this is now an atomic replace. We don't
+     * really care this first g_file_set_contents fails.
+     */
+    g_file_set_contents(filename, "gnome-battery-bench", 20, NULL);
+    gsize len;
+    gchar *buffer = json_generator_to_data (generator, &len);
+    gboolean success = g_file_set_contents(filename, buffer, len, error);
+    g_free(buffer);
 
     g_object_unref(generator);
     json_node_free(root);
