@@ -1027,12 +1027,46 @@ gbb_application_prepare_for_sleep (GDBusConnection *connection,
 }
 
 static void
-gbb_application_init(GbbApplication *application)
+initialize_logind_proxy(GbbApplication *application)
 {
-    GError *error = NULL;
     GDBusConnection *bus;
+    GError *error = NULL;
     guint sleep_id;
 
+    application->inhibitor_fd = -1;
+
+    application->logind = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SYSTEM,
+                                                        0,
+                                                        NULL,
+                                                        LOGIND_DBUS_NAME,
+                                                        LOGIND_DBUS_PATH,
+                                                        LOGIND_DBUS_INTERFACE,
+                                                        NULL,
+                                                        &error);
+    if (application->logind == NULL) {
+        g_warning("Could not create logind proxy. Sleep/Resume signals not enabled. (%s)",
+                  error->message);
+        g_error_free(error);
+        return;
+    }
+    /* the following code needs to have a valid logind proxy */
+    bus = g_dbus_proxy_get_connection(application->logind);
+    sleep_id = g_dbus_connection_signal_subscribe(bus,
+                                                  LOGIND_DBUS_NAME,
+                                                  LOGIND_DBUS_INTERFACE,
+                                                  "PrepareForSleep",
+                                                  LOGIND_DBUS_PATH,
+                                                  NULL,
+                                                  G_DBUS_SIGNAL_FLAGS_NONE,
+                                                  gbb_application_prepare_for_sleep,
+                                                  application,
+                                                  NULL);
+    application->sleep_id = sleep_id;
+}
+
+static void
+gbb_application_init(GbbApplication *application)
+{
     application->runner = gbb_test_runner_new();
     g_signal_connect(application->runner, "phase-changed",
                      G_CALLBACK(on_runner_phase_changed), application);
@@ -1047,35 +1081,7 @@ gbb_application_init(GbbApplication *application)
     g_signal_connect(application->player, "ready",
                      G_CALLBACK(on_player_ready), application);
 
-    application->inhibitor_fd = -1;
-
-    application->logind = g_dbus_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
-                                                         0,
-                                                         NULL,
-                                                         LOGIND_DBUS_NAME,
-                                                         LOGIND_DBUS_PATH,
-                                                         LOGIND_DBUS_INTERFACE,
-                                                         NULL,
-                                                         &error);
-    if (application->logind == NULL) {
-        g_warning("Could not create logind proxy. Sleep/Resume signals not enabled. (%s)",
-                  error->message);
-        g_error_free(error);
-        return;
-    }
-    /* the following code needs to have a valid logind proxy */
-    bus = g_dbus_proxy_get_connection (application->logind);
-    sleep_id = g_dbus_connection_signal_subscribe (bus,
-                                                   LOGIND_DBUS_NAME,
-                                                   LOGIND_DBUS_INTERFACE,
-                                                   "PrepareForSleep",
-                                                   LOGIND_DBUS_PATH,
-                                                   NULL,
-                                                   G_DBUS_SIGNAL_FLAGS_NONE,
-                                                   gbb_application_prepare_for_sleep,
-                                                   application,
-                                                   NULL);
-    application->sleep_id = sleep_id;
+    initialize_logind_proxy(application);
 
     g_debug("Gbb initialized");
 }
