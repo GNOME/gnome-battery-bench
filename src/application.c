@@ -931,6 +931,10 @@ gbb_application_inhibitor_lock_take(GbbApplication *application)
     GUnixFDList *fds;
     GError *error = NULL;
 
+    if (application->logind == NULL) {
+        return FALSE;
+    }
+
     if (application->inhibitor_fd > -1) {
         return TRUE;
     }
