@@ -14,6 +14,7 @@ struct _GbbTestRun {
     GObject parent;
 
     GbbBatteryTest *test;
+    char *id;
     char *filename;
     char *name;
     char *description;
@@ -63,6 +64,7 @@ gbb_test_run_finalize(GObject *object)
 static void
 gbb_test_run_init(GbbTestRun *run)
 {
+    run->id = uuid_gen_new();
     run->history = g_queue_new();
 }
 
@@ -310,6 +312,8 @@ gbb_test_run_write_to_file(GbbTestRun *run,
     JsonBuilder *builder = json_builder_new();
 
     json_builder_begin_object(builder);
+    json_builder_set_member_name(builder, "id");
+    json_builder_add_string_value(builder, run->id);
     json_builder_set_member_name(builder, "test-id");
     json_builder_add_string_value(builder, run->test->id);
     json_builder_set_member_name(builder, "test-name");
