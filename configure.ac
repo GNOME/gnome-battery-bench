@@ -17,7 +17,7 @@ GLIB_GSETTINGS
 
 base_packages="libevdev glib-2.0 >= 2.44.0 gio-unix-2.0"
 x_packages="x11 xi xtst"
-app_packages="json-glib-1.0 gudev-1.0"
+app_packages="json-glib-1.0 gudev-1.0 gdk-3.0"
 
 AC_PROG_CC
 AM_PROG_CC_C_O

@@ -5,6 +5,8 @@
 #include <glib.h>
 #include <string.h>
 
+#include <gdk/gdk.h>
+
 #include "power-supply.h"
 
 #include "config.h"
@@ -35,6 +37,14 @@ struct _GbbSystemInfo {
     /* GPU/Renderer */
     char *renderer;
 
+    /* Monitor */
+    int monitor_x;
+    int monitor_y;
+    int monitor_width;
+    int monitor_height;
+    float monitor_refresh;
+    float monitor_scale;
+
     /* Software */
 
     /* OS */
@@ -63,6 +73,13 @@ enum {
     PROP_MEM_TOTAL,
 
     PROP_BATTERIES,
+
+    PROP_MONITOR_X,
+    PROP_MONITOR_Y,
+    PROP_MONITOR_WIDTH,
+    PROP_MONITOR_HEIGHT,
+    PROP_MONITOR_REFRESH,
+    PROP_MONITOR_SCALE,
 
     PROP_RENDERER,
 
@@ -157,6 +174,30 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_BATTERIES:
         g_value_set_boxed(value, info->batteries);
+        break;
+
+    case PROP_MONITOR_X:
+        g_value_set_int(value, info->monitor_x);
+        break;
+
+    case PROP_MONITOR_Y:
+        g_value_set_int(value, info->monitor_y);
+        break;
+
+    case PROP_MONITOR_WIDTH:
+        g_value_set_int(value, info->monitor_width);
+        break;
+
+    case PROP_MONITOR_HEIGHT:
+        g_value_set_int(value, info->monitor_height);
+        break;
+
+    case PROP_MONITOR_REFRESH:
+        g_value_set_float(value, info->monitor_refresh);
+        break;
+
+    case PROP_MONITOR_SCALE:
+        g_value_set_float(value, info->monitor_scale);
         break;
 
     case PROP_RENDERER:
@@ -256,11 +297,54 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                                                          G_PARAM_READABLE));
 
     g_object_class_install_property (gobject_class,
+                                     PROP_MONITOR_X,
+                                     g_param_spec_int ("monitor-x",
+                                                       NULL, NULL,
+                                                       0, G_MAXINT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property (gobject_class,
+                                     PROP_MONITOR_Y,
+                                     g_param_spec_int ("monitor-y",
+                                                       NULL, NULL,
+                                                       0, G_MAXINT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property (gobject_class,
+                                     PROP_MONITOR_WIDTH,
+                                     g_param_spec_int ("monitor-width",
+                                                       NULL, NULL,
+                                                       0, G_MAXINT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property (gobject_class,
+                                     PROP_MONITOR_HEIGHT,
+                                     g_param_spec_int ("monitor-height",
+                                                       NULL, NULL,
+                                                       0, G_MAXINT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property(gobject_class,
+                                    PROP_MONITOR_REFRESH,
+                                    g_param_spec_float("monitor-refresh",
+                                                       NULL, NULL,
+                                                       0, G_MAXFLOAT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property(gobject_class,
+                                    PROP_MONITOR_SCALE,
+                                    g_param_spec_float("monitor-scale",
+                                                       NULL, NULL,
+                                                       0, G_MAXFLOAT, 0,
+                                                       G_PARAM_READABLE));
+
+    g_object_class_install_property (gobject_class,
                                      PROP_RENDERER,
                                      g_param_spec_string ("renderer",
                                                           NULL, NULL,
                                                           NULL,
                                                           G_PARAM_READABLE));
+
     g_object_class_install_property (gobject_class,
                                      PROP_OS_KERNEL,
                                      g_param_spec_string ("os-kernel",
@@ -585,9 +669,78 @@ get_renderer_info (void)
     return g_strdup("Unknown");
 }
 
+static gboolean
+monitor_is_builtin(GdkMonitor *monitor)
+{
+    const char *model;
+
+    model = gdk_monitor_get_model(monitor);
+
+    if (model == NULL)
+        return FALSE;
+
+    /* this is lifted from libgnome-desktop/gnome-rr.c */
+    /* Most drivers use an "LVDS" prefix... */
+    if (strstr(model, "lvds") ||
+	strstr(model, "LVDS") ||
+	strstr(model, "Lvds") ||
+        /* ... but fglrx uses "LCD" in some versions.  Shoot me now, kthxbye. */
+	strstr(model, "LCD")  ||
+         /* eDP is for internal built-in panel connections */
+	strstr(model, "eDP")  ||
+	strstr(model, "DSI"))
+        return TRUE;
+
+    return FALSE;
+}
+
+static void
+load_monitor_info(GbbSystemInfo *info,
+                 GdkDisplay    *display)
+{
+    GdkMonitor *builtin = NULL;
+    GdkRectangle geo;
+    int i, n;
+
+    n = gdk_display_get_n_monitors(display);
+
+    for (i = 0; i < n; i++) {
+        GdkMonitor *moni = gdk_display_get_monitor(display, i);
+
+        if (monitor_is_builtin(moni)) {
+            builtin = moni;
+            break;
+        }
+    }
+
+    if (builtin == NULL) {
+        g_warning("Could not detect builtin monitor");
+        builtin = gdk_display_get_primary_monitor(display);
+
+        if (builtin == NULL) {
+            builtin = gdk_display_get_monitor(display, 0);
+        }
+    }
+
+    if (builtin == NULL) {
+        g_warning("Could not find any monitor");
+        return;
+    }
+
+    info->monitor_refresh = gdk_monitor_get_refresh_rate(builtin) / 1000.0f;
+    info->monitor_width = gdk_monitor_get_width_mm(builtin);
+    info->monitor_height = gdk_monitor_get_height_mm(builtin);
+    info->monitor_scale = gdk_monitor_get_scale_factor(builtin);
+
+    gdk_monitor_get_geometry(builtin, &geo);
+    info->monitor_x = geo.width * info->monitor_scale;
+    info->monitor_y = geo.height * info->monitor_scale;
+}
 
 static void gbb_system_info_init (GbbSystemInfo *info)
 {
+    GdkDisplay *display;
+
     read_dmi_info(info);
     load_gnome_version(&info->gnome_version,
                        &info->gnome_distributor,
@@ -598,6 +751,13 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->mem_total = read_mem_info();
     info->batteries = get_batteries();
     info->renderer = get_renderer_info();
+
+    display = gdk_display_get_default ();
+    if (display == NULL) {
+        return;
+    }
+
+    load_monitor_info(info, display);
 }
 
 GbbSystemInfo *
@@ -692,6 +852,31 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                 json_builder_end_object(builder);
             }
             json_builder_end_array(builder);
+        }
+
+        json_builder_set_member_name(builder, "monitor");
+        {
+            json_builder_begin_object(builder);
+
+            json_builder_set_member_name(builder, "x");
+            json_builder_add_int_value(builder, info->monitor_x);
+
+            json_builder_set_member_name(builder, "y");
+            json_builder_add_int_value(builder, info->monitor_y);
+
+            json_builder_set_member_name(builder, "width");
+            json_builder_add_int_value(builder, info->monitor_width);
+
+            json_builder_set_member_name(builder, "height");
+            json_builder_add_int_value(builder, info->monitor_height);
+
+            json_builder_set_member_name(builder, "refresh");
+            json_builder_add_double_value(builder, info->monitor_refresh);
+
+            json_builder_set_member_name(builder, "scale");
+            json_builder_add_double_value(builder, info->monitor_scale);
+
+            json_builder_end_object(builder);
         }
 
         json_builder_set_member_name(builder, "renderer");
