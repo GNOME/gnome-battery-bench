@@ -455,7 +455,7 @@ read_mem_info(void)
 static char *
 get_renderer_info (void)
 {
-    g_autoptr(GDBusProxy) proxy;
+    g_autoptr(GDBusProxy) proxy = NULL;
     g_autoptr(GVariant) var = NULL;
     g_autoptr(GError) error = NULL;
     const char *renderer = "Unknown";
