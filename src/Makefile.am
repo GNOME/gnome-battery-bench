@@ -25,6 +25,8 @@ client_sources =				\
 	event-recorder.h			\
 	power-monitor.c				\
 	power-monitor.h				\
+	power-supply.h				\
+	power-supply.c				\
 	system-info.h				\
 	system-info.c				\
 	system-state.c				\

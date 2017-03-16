@@ -17,13 +17,14 @@ GLIB_GSETTINGS
 
 base_packages="libevdev glib-2.0 >= 2.44.0 gio-unix-2.0"
 x_packages="x11 xi xtst"
+app_packages="json-glib-1.0 gudev-1.0"
 
 AC_PROG_CC
 AM_PROG_CC_C_O
 
 PKG_CHECK_MODULES([HELPER], [$base_packages polkit-gobject-1])
-PKG_CHECK_MODULES([COMMANDLINE], [$base_packages $x_packages json-glib-1.0])
-PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages gtk+-3.0 json-glib-1.0])
+PKG_CHECK_MODULES([COMMANDLINE], [$base_packages $x_packages $app_packages])
+PKG_CHECK_MODULES([APPLICATION], [$base_packages $x_packages $app_packages gtk+-3.0])
 
 AC_PATH_PROG(ASCIIDOC, asciidoc, "")
 AC_PATH_PROG(XMLTO, xmlto, "")
