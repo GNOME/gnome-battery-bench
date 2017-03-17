@@ -15,12 +15,14 @@ struct _GbbPowerSupplyClass
   gpointer padding[13];
 };
 
+GList *     gbb_power_supply_discover    (void);
+
 /* ************************************************************************** */
 
 #define GBB_TYPE_BATTERY gbb_battery_get_type()
 G_DECLARE_FINAL_TYPE(GbbBattery, gbb_battery, GBB, BATTERY, GbbPowerSupply)
 
-GList *     gbb_battery_discover    (void);
+
 double      gbb_battery_poll        (GbbBattery *);
 
 /* ************************************************************************** */

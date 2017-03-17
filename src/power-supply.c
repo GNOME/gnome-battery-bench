@@ -100,6 +100,50 @@ gbb_power_supply_init(GbbPowerSupply *ps)
 {
 
 }
+
+GList *
+gbb_power_supply_discover()
+{
+    GUdevClient *client;
+    GList *devices;
+    GList *l;
+    GList *supplies = NULL;
+
+    client = g_udev_client_new(NULL);
+
+    devices = g_udev_client_query_by_subsystem(client, "power_supply");
+
+    for (l = devices; l != NULL; l = l->next) {
+        GUdevDevice *device = l->data;
+        const gchar *dev_type;
+
+        dev_type = g_udev_device_get_sysfs_attr(device,
+                                                "type");
+        if (dev_type == NULL) {
+            continue;
+        }
+
+        if (g_str_equal(dev_type, "Battery")) {
+            GObject *bat = g_object_new(GBB_TYPE_BATTERY,
+                                        "udev-device", device,
+                                        NULL);
+            supplies = g_list_prepend(supplies, bat);
+        } else if (g_str_equal(dev_type, "Mains")) {
+            GObject *msn = g_object_new(GBB_TYPE_MAINS,
+                                        "udev-device", device,
+                                        NULL);
+            supplies = g_list_prepend(supplies, msn);
+        } else {
+            g_warning("Unknown power supply type '%s'. Skipping.",
+                      dev_type);
+        }
+    }
+
+    g_list_free_full(devices, (GDestroyNotify) g_object_unref);
+    g_object_unref(client);
+
+    return supplies;
+}
 /* ************************************************************************** */
 
 struct _GbbBattery {
@@ -389,41 +433,6 @@ energy_design_initialize(GbbBattery *bat)
         /* We actually should report that and give up working at all */
         g_warning("Could not get energy full (design) for battery");
     }
-}
-
-GList *
-gbb_battery_discover()
-{
-    GUdevClient *client;
-    GList *devices;
-    GList *l;
-    GList *supplies = NULL;
-
-    client = g_udev_client_new(NULL);
-
-    devices = g_udev_client_query_by_subsystem(client, "power_supply");
-
-    for (l = devices; l != NULL; l = l->next) {
-        GUdevDevice *device = l->data;
-        const gchar *dev_type;
-
-        dev_type = g_udev_device_get_sysfs_attr(device,
-                                                "type");
-        if (dev_type == NULL) {
-            continue;
-        }
-
-        g_print("Type: %s\n", dev_type);
-        if (g_str_equal(dev_type, "Battery")) {
-            GObject *bat = g_object_new(GBB_TYPE_BATTERY,
-                                        "udev-device", device,
-                                        NULL);
-            supplies = g_list_prepend(supplies, bat);
-        }
-    }
-
-    g_list_free_full(devices, (GDestroyNotify) g_object_unref);
-    return supplies;
 }
 
 double
