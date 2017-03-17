@@ -284,14 +284,13 @@ sysfs_read_string_cached(GUdevDevice *device, const char *name)
     return g_strdup(value);
 }
 
-static double
-sysfs_read_double_scaled(GUdevDevice *device, const char *name)
+static gboolean
+sysfs_read_guint64(GUdevDevice *device, const char *name, guint64 *res)
 {
     g_autofree char *buffer = NULL;
     char filename[PATH_MAX];
     const char *path;
     guint64 value;
-    double dv;
     gboolean ok;
     char *end;
 
@@ -300,17 +299,30 @@ sysfs_read_double_scaled(GUdevDevice *device, const char *name)
     g_snprintf(filename, sizeof(filename), "%s/%s", path, name);
     ok = g_file_get_contents(filename, &buffer, NULL, NULL);
     if (!ok) {
-        return NAN;
+        return FALSE;
     }
 
     value = g_ascii_strtoull(buffer, &end, 10);
-    if (end != buffer) {
-        dv = value / 1000000.;
-    } else {
-        dv = NAN;
+    if (end == buffer) {
+        return FALSE;
     }
 
-    return dv;
+    *res = value;
+    return TRUE;
+}
+
+static double
+sysfs_read_double_scaled(GUdevDevice *device, const char *name)
+{
+    guint64 value;
+    gboolean ok;
+
+    ok = sysfs_read_guint64(device, name, &value);
+    if (!ok) {
+        return NAN;
+    }
+
+    return value / 1000000.;
 }
 
 static const char *voltage_sources[] = {
@@ -430,4 +442,91 @@ gbb_battery_poll(GbbBattery *bat)
 
     bat->energy = new_value;
     return new_value;
+}
+
+/* ************************************************************************** */
+
+struct _GbbMains {
+    GbbPowerSupply parent;
+    gboolean online;
+};
+
+enum {
+    PROP_MAINS_0,
+
+    PROP_ONLINE,
+
+    PROP_MAINS_LAST
+};
+
+static GParamSpec *mains_props[PROP_MAINS_LAST] = { NULL, };
+
+G_DEFINE_TYPE(GbbMains, gbb_mains, GBB_TYPE_POWER_SUPPLY);
+
+static void
+gbb_mains_get_property(GObject    *object,
+                       guint       prop_id,
+                       GValue     *value,
+                       GParamSpec *pspec)
+{
+    GbbMains *mns = GBB_MAINS(object);
+
+    switch (prop_id) {
+    case PROP_ONLINE:
+        g_value_set_boolean(value, mns->online);
+        break;
+    }
+}
+
+static void
+gbb_mains_constructed(GObject *obj)
+{
+    GbbMains *mns = GBB_MAINS(obj);
+    gbb_mains_poll(mns);
+}
+
+static void
+gbb_mains_init(GbbMains *mns)
+{
+
+}
+
+static void
+gbb_mains_class_init(GbbMainsClass *klass)
+{
+    GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+
+    gobject_class->get_property = gbb_mains_get_property;
+    gobject_class->constructed  = gbb_mains_constructed;
+
+    mains_props[PROP_ONLINE] =
+        g_param_spec_boolean("online",
+                             NULL, NULL,
+                             FALSE,
+                             G_PARAM_READABLE |
+                             G_PARAM_STATIC_NAME);
+
+    g_object_class_install_properties(gobject_class,
+                                      PROP_MAINS_LAST,
+                                      mains_props);
+}
+
+gboolean
+gbb_mains_poll(GbbMains *mns)
+{
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(mns);
+    GUdevDevice *dev = priv->udevice;
+    gboolean ok;
+    guint64 val;
+
+    ok = sysfs_read_guint64(dev, "online", &val);
+
+    if (ok) {
+        mns->online = val;
+    } else {
+        g_warning("Could not read AC status: %s",
+                  g_udev_device_get_sysfs_path(dev));
+    }
+
+    return val;
 }
