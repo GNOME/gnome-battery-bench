@@ -135,6 +135,8 @@ gbb_battery_constructed(GObject *obj)
     voltage_design_initialize(bat);
     energy_design_initialize(bat);
 
+    gbb_battery_poll(bat);
+
     G_OBJECT_CLASS(gbb_battery_parent_class)->constructed(obj);
 }
 
@@ -347,4 +349,21 @@ gbb_battery_discover()
 
     g_list_free_full(devices, (GDestroyNotify) g_object_unref);
     return supplies;
+}
+
+double
+gbb_battery_poll(GbbBattery *bat)
+{
+    GUdevDevice *dev = bat->udevice;
+    double new_value;
+
+    if (bat->use_charge) {
+        new_value = sysfs_read_double_scaled(dev, "charge_now");
+        new_value *= bat->voltage_desgin;
+    } else {
+        new_value = sysfs_read_double_scaled(dev, "energy_now");
+    }
+
+    bat->energy = new_value;
+    return new_value;
 }
