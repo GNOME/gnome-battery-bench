@@ -9,10 +9,102 @@
 
 #include "power-supply.h"
 
-struct _GbbBattery {
-    GObject parent;
-
+typedef struct _GbbPowerSupplyPrivate {
     GUdevDevice *udevice;
+} GbbPowerSupplyPrivate;
+
+enum {
+    PROP_SUPPLY_0,
+    PROP_UDEV_DEVICE,
+    PROP_SUPPLY_LAST
+};
+
+static GParamSpec *supply_props[PROP_SUPPLY_LAST] = { NULL, };
+
+G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE(GbbPowerSupply,
+                                    gbb_power_supply,
+                                    G_TYPE_OBJECT);
+
+#define SUPPLY_GET_PRIV(obj) \
+    ((GbbPowerSupplyPrivate *) gbb_power_supply_get_instance_private(GBB_POWER_SUPPLY(obj)))
+
+
+static void
+gbb_power_supply_finalize(GObject *object)
+{
+    GbbPowerSupply *ps = GBB_POWER_SUPPLY(object);
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(ps);
+
+    g_clear_object(&priv->udevice);
+}
+
+static void
+gbb_power_supply_get_property(GObject    *object,
+                              guint       prop_id,
+                              GValue     *value,
+                              GParamSpec *pspec)
+{
+    GbbPowerSupply *ps = GBB_POWER_SUPPLY(object);
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(ps);
+
+    switch (prop_id) {
+
+    case PROP_UDEV_DEVICE:
+        g_value_set_object(value, priv->udevice);
+        break;
+    }
+}
+
+static void
+gbb_power_supply_set_property(GObject     *object,
+                              guint        prop_id,
+                              const GValue *value,
+                              GParamSpec   *pspec)
+{
+    GbbPowerSupply *ps = GBB_POWER_SUPPLY(object);
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(ps);
+
+    switch (prop_id) {
+    case PROP_UDEV_DEVICE:
+        priv->udevice = g_value_dup_object(value);
+        break;
+    }
+
+}
+
+static void
+gbb_power_supply_class_init(GbbPowerSupplyClass *klass)
+{
+    GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+
+    gobject_class->finalize     = gbb_power_supply_finalize;
+    gobject_class->get_property = gbb_power_supply_get_property;
+    gobject_class->set_property = gbb_power_supply_set_property;
+
+    supply_props[PROP_UDEV_DEVICE] =
+        g_param_spec_object("udev-device",
+                            NULL, NULL,
+                            G_UDEV_TYPE_DEVICE,
+                            G_PARAM_READWRITE |
+                            G_PARAM_CONSTRUCT_ONLY |
+                            G_PARAM_STATIC_NAME);
+
+    g_object_class_install_properties(gobject_class,
+                                      PROP_SUPPLY_LAST,
+                                      supply_props);
+
+}
+
+static void
+gbb_power_supply_init(GbbPowerSupply *ps)
+{
+
+}
+/* ************************************************************************** */
+
+struct _GbbBattery {
+    GbbPowerSupply parent;
+
     char *vendor;
     char *model;
 
@@ -26,7 +118,6 @@ struct _GbbBattery {
 
 enum {
     PROP_BAT_0,
-    PROP_UDEV_DEVICE,
 
     PROP_VENDOR,
     PROP_MODEL,
@@ -42,7 +133,7 @@ enum {
 
 static GParamSpec *battery_props[PROP_BAT_LAST] = { NULL, };
 
-G_DEFINE_TYPE(GbbBattery, gbb_battery, G_TYPE_OBJECT);
+G_DEFINE_TYPE(GbbBattery, gbb_battery, GBB_TYPE_POWER_SUPPLY);
 
 
 static char *   sysfs_read_string_cached             (GUdevDevice *device,
@@ -61,8 +152,6 @@ gbb_battery_finalize(GObject *obj)
     g_free(bat->vendor);
     g_free(bat->model);
 
-    g_clear_object(&bat->udevice);
-
     G_OBJECT_CLASS(gbb_battery_parent_class)->finalize(obj);
 }
 
@@ -75,9 +164,6 @@ gbb_battery_get_property(GObject    *object,
     GbbBattery *bat = GBB_BATTERY(object);
 
     switch (prop_id) {
-    case PROP_UDEV_DEVICE:
-        g_value_set_object(value, bat->udevice);
-        break;
 
     case PROP_VENDOR:
         g_value_set_string(value, bat->vendor);
@@ -106,28 +192,11 @@ gbb_battery_get_property(GObject    *object,
 }
 
 static void
-gbb_battery_set_property(GObject     *object,
-                         guint        prop_id,
-                         const GValue *value,
-                         GParamSpec   *pspec)
-{
-    GbbBattery *bat = GBB_BATTERY(object);
-
-    switch (prop_id) {
-    case PROP_UDEV_DEVICE:
-        bat->udevice = g_value_dup_object(value);
-        break;
-
-    default:
-        g_assert_not_reached();
-    }
-}
-
-static void
 gbb_battery_constructed(GObject *obj)
 {
     GbbBattery *bat = GBB_BATTERY(obj);
-    GUdevDevice *device = bat->udevice;
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(bat);
+    GUdevDevice *device = priv->udevice;
 
     bat->vendor = sysfs_read_string_cached(device, "manufacturer");
     bat->model = sysfs_read_string_cached(device, "model_name");
@@ -152,16 +221,7 @@ gbb_battery_class_init(GbbBatteryClass *klass)
 
     gobject_class->finalize     = gbb_battery_finalize;
     gobject_class->get_property = gbb_battery_get_property;
-    gobject_class->set_property = gbb_battery_set_property;
     gobject_class->constructed  = gbb_battery_constructed;
-
-    battery_props[PROP_UDEV_DEVICE] =
-        g_param_spec_object("udev-device",
-                            NULL, NULL,
-                            G_UDEV_TYPE_DEVICE,
-                            G_PARAM_READWRITE |
-                            G_PARAM_CONSTRUCT_ONLY |
-                            G_PARAM_STATIC_NAME);
 
     battery_props[PROP_VENDOR] =
         g_param_spec_string("vendor",
@@ -264,11 +324,13 @@ static const char *voltage_sources[] = {
 static void
 voltage_design_initialize (GbbBattery *bat)
 {
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(bat);
+    GUdevDevice *dev = priv->udevice;
     const char **source;
 
     for (source = voltage_sources; *source != NULL; source++) {
         const char *name = *source;
-        double val = sysfs_read_double_scaled(bat->udevice, name);
+        double val = sysfs_read_double_scaled(dev, name);
 
         if (val > 1.0) {
             g_debug("Using '%s' as design voltage", name);
@@ -284,7 +346,8 @@ voltage_design_initialize (GbbBattery *bat)
 static void
 energy_design_initialize(GbbBattery *bat)
 {
-    GUdevDevice *dev = bat->udevice;
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(bat);
+    GUdevDevice *dev = priv->udevice;
     double val;
 
     val = sysfs_read_double_scaled(dev, "energy_now");
@@ -354,7 +417,8 @@ gbb_battery_discover()
 double
 gbb_battery_poll(GbbBattery *bat)
 {
-    GUdevDevice *dev = bat->udevice;
+    GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(bat);
+    GUdevDevice *dev = priv->udevice;
     double new_value;
 
     if (bat->use_charge) {
