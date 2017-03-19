@@ -20,6 +20,7 @@
 #include "remote-player.h"
 #include "event-recorder.h"
 #include "power-monitor.h"
+#include "power-supply.h"
 #include "system-info.h"
 #include "test-runner.h"
 #include "xinput-wait.h"
@@ -31,6 +32,31 @@ static GOptionEntry info_options[] =
     { "json", 'j', 0, G_OPTION_ARG_NONE, &info_usejson, "Show data in json" },
     { NULL }
 };
+
+static void
+info_txt_battery(GbbBattery *bat, const char *prefix)
+{
+    g_autofree char *vendor = NULL;
+    g_autofree char *model = NULL;
+    double volt_design;
+    double energy_full;
+    double energy_full_design;
+
+    g_object_get(bat,
+                 "vendor", &vendor,
+                 "model", &model,
+                 "voltage-design", &volt_design,
+                 "energy-full", &energy_full,
+                 "energy-full-design", &energy_full_design,
+                 NULL);
+
+    g_print("%s Battery:\n", prefix);
+    g_print("%s   Vendor: %s\n", prefix, vendor);
+    g_print("%s   Model: %s\n", prefix, model);
+    g_print("%s   Voltage Design: %5.2f V\n", prefix, volt_design);
+    g_print("%s   Energy Full: %5.2f Wh\n", prefix, energy_full);
+    g_print("%s   Energy Full Design: %5.2f Wh\n", prefix, energy_full_design);
+}
 
 static int
 info_txt(int argc, char **argv)
@@ -51,6 +77,7 @@ info_txt(int argc, char **argv)
     g_autofree char *gnome_version;
     g_autofree char *gnome_distributor;
     g_autofree char *gnome_date;
+    g_autoptr(GPtrArray) batteries = NULL;
 
     info = gbb_system_info_acquire();
 
@@ -64,6 +91,7 @@ info_txt(int argc, char **argv)
                  "cpu-number", &cpu_number,
                  "cpu-info", &cpu_info,
                  "mem-total", &mem_total,
+                 "batteries", &batteries,
                  "renderer", &renderer,
                  "os-type", &os_type,
                  "os-kernel", &os_kernel,
@@ -82,6 +110,8 @@ info_txt(int argc, char **argv)
     for (int i = 0; i < g_strv_length(cpu_info); i++) {
         g_print("   Info [%d]: %s\n", i, cpu_info[i]);
     }
+    g_print("  Batteries:\n");
+    g_ptr_array_foreach(batteries, (GFunc) info_txt_battery, "  ");
     g_print("  Renderer: %s\n", renderer);
     g_print("  Memory:\n");
     g_print("   Total: %" G_GUINT64_FORMAT " kB\n", mem_total);
