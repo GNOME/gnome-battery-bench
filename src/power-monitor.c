@@ -5,6 +5,7 @@
 #include <gio/gio.h>
 
 #include "power-monitor.h"
+#include "power-supply.h"
 
 /* Time between reading values out of proc (ms) */
 #define UPDATE_FREQUENCY 250
@@ -20,26 +21,6 @@ struct _GbbPowerMonitor {
 struct _GbbPowerMonitorClass {
     GObjectClass parent_class;
 };
-
-typedef struct {
-} BatteryState;
-
-typedef struct  {
-    GFile *directory;
-    double energy_now;
-    double energy_full;
-    double energy_full_design;
-    double charge_now;
-    double charge_full;
-    double charge_full_design;
-    double capacity_now;
-    double voltage_now;
-} Battery;
-
-typedef struct  {
-    GFile *directory;
-    gboolean online;
-} Adapter;
 
 enum {
     CHANGED,
@@ -76,12 +57,7 @@ gbb_power_state_equal(GbbPowerState *a,
     return (a->online == b->online &&
             a->energy_now == b->energy_now &&
             a->energy_full == b->energy_full &&
-            a->energy_full_design == b->energy_full_design &&
-            a->charge_now == b->charge_now &&
-            a->charge_full == b->charge_full &&
-            a->charge_full_design == b->charge_full_design &&
-            a->capacity_now == b->capacity_now &&
-            a->voltage_now == b->voltage_now);
+            a->energy_full_design == b->energy_full_design);
 }
 
 void
@@ -90,178 +66,37 @@ gbb_power_statistics_free (GbbPowerStatistics *statistics)
     g_slice_free(GbbPowerStatistics, statistics);
 }
 
-static char *
-get_file_contents_string (GFile        *directory,
-                          char         *child,
-                          GCancellable *cancellable,
-                          GError      **error)
-{
-    GFile *file = g_file_get_child(directory, child);
-    char *contents;
-    if (!g_file_load_contents(file, cancellable, &contents, NULL, NULL, error))
-        contents = NULL;
-
-    g_object_unref (file);
-    return contents;
-}
-
-static gboolean
-get_file_contents_int (GFile        *directory,
-                       char         *child,
-                       int          *result,
-                       GCancellable *cancellable,
-                       GError      **error)
-{
-    char *contents = get_file_contents_string(directory, child, cancellable, error);
-    if (contents) {
-        *result = atoi (contents);
-        g_free (contents);
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-static gboolean
-get_file_contents_double (GFile        *directory,
-                          char         *child,
-                          double       *result,
-                          GCancellable *cancellable,
-                          GError      **error)
-{
-    int result_int;
-    if (get_file_contents_int (directory, child, &result_int, cancellable, error)) {
-        *result = result_int / 1000000.;
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-static void
-battery_poll(Battery *battery)
-{
-    battery->energy_now = -1.0;
-    battery->energy_full = -1.0;
-    battery->energy_full_design = -1.0;
-    battery->charge_now = -1.0;
-    battery->charge_full = -1.0;
-    battery->charge_full_design = -1.0;
-    battery->capacity_now = -1.0;
-    battery->voltage_now = -1.0;
-
-    get_file_contents_double (battery->directory, "energy_now", &battery->energy_now, NULL, NULL);
-    if (battery->energy_now >= 0) {
-        GError *error = NULL;
-        get_file_contents_double (battery->directory, "energy_full", &battery->energy_full, NULL, NULL);
-        get_file_contents_double (battery->directory, "energy_full_design", &battery->energy_full_design, NULL, &error);
-        return;
-    }
-    get_file_contents_double (battery->directory, "charge_now", &battery->charge_now, NULL, NULL);
-    if (battery->charge_now >= 0) {
-        get_file_contents_double (battery->directory, "charge_full", &battery->charge_full, NULL, NULL);
-        get_file_contents_double (battery->directory, "charge_full_design", &battery->charge_full_design, NULL, NULL);
-        get_file_contents_double (battery->directory, "voltage_now", &battery->voltage_now, NULL, NULL);
-        return;
-    }
-
-    int capacity;
-    if (get_file_contents_int (battery->directory, "capacity_now", &capacity, NULL, NULL))
-        battery->capacity_now = capacity / 100.;
-}
-
-static Battery *
-battery_new (GFile *directory)
-{
-    Battery *battery = g_slice_new0(Battery);
-    battery->directory = g_object_ref(directory);
-    battery_poll(battery);
-
-    return battery;
-}
-
-static void
-battery_free (Battery *battery)
-{
-    g_object_unref(battery->directory);
-    g_slice_free(Battery, battery);
-}
-
-static void
-adapter_poll(Adapter *adapter)
-{
-    int online;
-
-    if (get_file_contents_int (adapter->directory, "online", &online, NULL, NULL))
-        adapter->online = online != 0;
-    else
-        adapter->online = FALSE;
-}
-
-static Adapter *
-adapter_new(GFile *directory)
-{
-    Adapter *adapter = g_slice_new0(Adapter);
-    adapter->directory = g_object_ref(directory);
-    adapter_poll(adapter);
-
-    return adapter;
-}
-
-static void
-adapter_free (Adapter *adapter)
-{
-    g_object_unref(adapter->directory);
-    g_slice_free(Adapter, adapter);
-}
-
-static gboolean
-is_adapter(const char *name)
-{
-    return g_str_has_prefix(name, "AC") || g_str_has_prefix(name, "ADP");
-}
 
 static gboolean
 find_power_supplies(GbbPowerMonitor *monitor,
                     GCancellable *cancellable,
                     GError      **error)
 {
-    GFile *file = g_file_new_for_path ("/sys/class/power_supply");
-    GFileEnumerator *enumerator = NULL;
 
-    enumerator = g_file_enumerate_children (file,
-                                            "standard::name,standard::type",
-                                            G_FILE_QUERY_INFO_NONE,
-                                            cancellable, error);
-    if (!enumerator)
-        goto out;
+    GList *supplies;
+    GList *l;
 
-    while (*error == NULL) {
-        GFileInfo *info = g_file_enumerator_next_file (enumerator, cancellable, error);
-        GFile *child = NULL;
-        if (*error != NULL)
-            goto out;
-        else if (!info)
-            break;
+    supplies = gbb_power_supply_discover();
 
-        if (g_file_info_get_file_type (info) != G_FILE_TYPE_DIRECTORY)
-            goto next;
-
-        child = g_file_enumerator_get_child (enumerator, info);
-
-        const char *basename = g_file_info_get_name (info);
-        if (g_str_has_prefix (basename, "BAT"))
-            monitor->batteries = g_list_prepend (monitor->batteries, battery_new (child));
-        else if (is_adapter (basename))
-            monitor->adapters = g_list_prepend (monitor->adapters, adapter_new (child));
-    next:
-        g_clear_object (&child);
-        g_clear_object (&info);
+    for (l = supplies; l != NULL; l = l->next) {
+        if (GBB_IS_BATTERY(l->data)) {
+            monitor->batteries = g_list_prepend(monitor->batteries, l->data);
+        } else if (GBB_IS_MAINS(l->data)) {
+            monitor->adapters = g_list_prepend(monitor->adapters, l->data);
+        } else {
+            g_assert_not_reached();
+        }
     }
 
-out:
-    g_clear_object (&file);
-    g_clear_object (&enumerator);
+    g_list_free(supplies);
+
+    if (monitor->batteries == NULL) {
+        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                            "No batteries found!");
+    } else if (monitor->adapters == NULL) {
+        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                            "No power adapter found!");
+    }
 
     return *error == NULL;
 }
@@ -271,8 +106,8 @@ gbb_power_monitor_finalize(GObject *object)
 {
     GbbPowerMonitor *monitor = GBB_POWER_MONITOR(object);
 
-    g_list_foreach(monitor->batteries, (GFunc)battery_free, NULL);
-    g_list_foreach(monitor->adapters, (GFunc)adapter_free, NULL);
+    g_list_foreach(monitor->batteries, (GFunc)g_object_unref, NULL);
+    g_list_foreach(monitor->adapters, (GFunc)g_object_unref, NULL);
 
     G_OBJECT_CLASS(gbb_power_monitor_parent_class)->finalize(object);
 }
@@ -346,58 +181,38 @@ read_state(GbbPowerMonitor *monitor,
     gbb_power_state_init(state);
     state->time_us = g_get_monotonic_time();
 
-    g_list_foreach (monitor->adapters, (GFunc)adapter_poll, NULL);
-    g_list_foreach (monitor->batteries, (GFunc)battery_poll, NULL);
-
     for (l = monitor->adapters; l; l = l->next) {
-        Adapter *adapter = l->data;
-        if (adapter->online)
+        GbbMains *mains = l->data;
+        gboolean online = gbb_mains_poll(mains);
+
+        if (online)
             state->online = TRUE;
     }
 
     for (l = monitor->batteries; l; l = l->next) {
-        Battery *battery = l->data;
-        if (battery->energy_now >= 0) {
-            add_to (&state->energy_now, battery->energy_now);
-            add_to (&state->energy_full, battery->energy_full);
+        GbbBattery *battery = l->data;
+        double energy_now = gbb_battery_poll(battery);
+        double energy_full = -1.0;
+        double energy_full_design = -1.0;
 
-            if (battery->energy_full_design >= 0) {
-                if (n_batteries == 0 || state->energy_full_design >= 0)
-                    add_to (&state->energy_full_design, battery->energy_full_design);
-            } else {
-                state->energy_full_design = -1;
-            }
-        } else if (battery->charge_now >= 0) {
-            add_to (&state->charge_now, battery->charge_now);
-            add_to (&state->charge_full, battery->charge_full);
+        g_object_get(battery,
+                     "energy-full", &energy_full,
+                     "energy-full-design", &energy_full_design,
+                     NULL);
 
-            if (battery->charge_full_design >= 0) {
-                if (n_batteries == 0 || state->charge_full_design >= 0)
-                    add_to (&state->charge_full_design, battery->charge_full_design);
-            } else {
-                state->charge_full_design = -1;
-            }
-        } else if (battery->capacity_now >= 0) {
-            add_to (&state->capacity_now, battery->capacity_now);
+        add_to (&state->energy_now, energy_now);
+        add_to (&state->energy_full, energy_full);
+
+        if (energy_full_design >= 0) {
+            if (n_batteries == 0 || state->energy_full_design >= 0)
+                add_to (&state->energy_full_design, energy_full_design);
+        } else {
+            state->energy_full_design = -1;
         }
 
-        /* state->voltage_now only makes sense if there is a single battery */
-        if (n_batteries == 0)
-            state->voltage_now = battery->voltage_now;
-        else
-            state->voltage_now = -1.0;
-
+        state->voltage_now = -1.0;
         n_batteries += 1;
     }
-
-    if ((state->energy_now >= 0 ? 1 : 0) +
-        (state->charge_now >= 0 ? 1 : 0) +
-        (state->capacity_now >= 0 ? 1 : 0) > 1) {
-        g_error ("Different batteries have different accounting methods");
-    }
-
-    if (state->capacity_now >= 0)
-        state->capacity_now /= n_batteries;
 
     return state;
 }
