@@ -401,18 +401,6 @@ gbb_test_run_write_to_file(GbbTestRun *run,
             json_builder_set_member_name(builder, "energy-full-design");
             add_int_value_1e6(builder, state->energy_full_design);
         }
-        if (state->charge_now >= 0) {
-            json_builder_set_member_name(builder, "charge");
-            add_int_value_1e6(builder, state->charge_now);
-        }
-        if (state->charge_full >= 0 && (!last_state || state->charge_full != last_state->charge_full)) {
-            json_builder_set_member_name(builder, "charge-full");
-            add_int_value_1e6(builder, state->charge_full);
-        }
-        if (state->charge_full_design >= 0 && (!last_state || state->charge_full_design != last_state->charge_full_design)) {
-            json_builder_set_member_name(builder, "charge-full-design");
-            add_int_value_1e6(builder, state->charge_full_design);
-        }
         if (state->capacity_now >= 0) {
             json_builder_set_member_name(builder, "capacity");
             add_int_value_1e6(builder, state->capacity_now);
@@ -735,12 +723,6 @@ read_from_file(GbbTestRun *run,
             if (get_int_1e6(node_object, "energy-full", &state->energy_full, error) == ERROR)
                 goto out;
             if (get_int_1e6(node_object, "energy-full-design", &state->energy_full_design, error) == ERROR)
-                goto out;
-            if (get_int_1e6(node_object, "charge", &state->charge_now, error) == ERROR)
-                goto out;
-            if (get_int_1e6(node_object, "charge-full", &state->charge_full, error) == ERROR)
-                goto out;
-            if (get_int_1e6(node_object, "charge-full-design", &state->charge_full_design, error) == ERROR)
                 goto out;
             if (get_int_1e6(node_object, "capacity", &state->capacity_now, error) == ERROR)
                 goto out;

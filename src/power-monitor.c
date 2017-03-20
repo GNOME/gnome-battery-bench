@@ -42,8 +42,6 @@ gbb_power_state_get_percent (const GbbPowerState *state)
 {
     if (state->energy_full >= 0)
         return 100 * state->energy_now / state->energy_full;
-    else if (state->charge_full >= 0)
-        return 100 * state->charge_now / state->charge_full;
     else if (state->capacity_now >= 0)
         return 100 * state->capacity_now;
     else
@@ -150,9 +148,6 @@ gbb_power_state_init(GbbPowerState *state)
     state->energy_now = -1.0;
     state->energy_full = -1.0;
     state->energy_full_design = -1.0;
-    state->charge_now = -1.0;
-    state->charge_full = -1.0;
-    state->charge_full_design = -1.0;
     state->capacity_now = -1.0;
     state->voltage_now = -1.0;
 }
@@ -273,27 +268,6 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
                 statistics->battery_life = 3600 * base->energy_full / statistics->power;
             if (base->energy_full_design >= 0)
                 statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
-        }
-    } else if (current->charge_now >= 0 && time_elapsed > 0) {
-        double charge_used = base->charge_now - current->charge_now;
-
-        if (charge_used > 0) {
-            statistics->current = 3600 * (charge_used) / time_elapsed;
-            if (base->charge_full >= 0)
-                statistics->battery_life = 3600 * base->charge_full / statistics->current;
-            if (base->charge_full_design >= 0)
-                statistics->battery_life_design = 3600 * base->charge_full_design / statistics->current;
-
-            /* We can approximate the power used using the current and the voltage; the
-             * more the voltage is constant, the more accurate this will be. We could
-             * improve this by looking at intermediate statistics, but since reporting
-             * capacity in watts is clearly preferred by the relevant standards, too much
-             * complexity to improve this doesn't seem to make sense.
-             */
-            if (current->voltage_now >= 0) {
-                double average_voltage = (base->voltage_now + current->voltage_now) / 2;
-                statistics->power = 3600 * average_voltage * charge_used / time_elapsed;
-            }
         }
     } else if (current->capacity_now >= 0 && time_elapsed > 0) {
         double capacity_used = base->capacity_now - current->capacity_now;
