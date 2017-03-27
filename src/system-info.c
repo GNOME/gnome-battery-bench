@@ -5,6 +5,8 @@
 #include <glib.h>
 #include <string.h>
 
+#include "power-supply.h"
+
 #include "config.h"
 
 struct _GbbSystemInfo {
@@ -26,6 +28,9 @@ struct _GbbSystemInfo {
     GStrv cpu_info;
 
     guint64 mem_total;
+
+    /*  Batteries  */
+    GPtrArray *batteries;
 
     /* GPU/Renderer */
     char *renderer;
@@ -56,6 +61,8 @@ enum {
     PROP_CPU_NUMBER,
     PROP_CPU_INFO,
     PROP_MEM_TOTAL,
+
+    PROP_BATTERIES,
 
     PROP_RENDERER,
 
@@ -91,6 +98,8 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_free(info->bios_vendor);
 
     g_strfreev(info->cpu_info);
+
+    g_ptr_array_unref(info->batteries);
 
     g_free(info->os_type);
     g_free(info->os_kernel);
@@ -142,6 +151,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_MEM_TOTAL:
         g_value_set_uint64(value, info->mem_total);
+        break;
+
+    case PROP_BATTERIES:
+        g_value_set_boxed(value, info->batteries);
         break;
 
     case PROP_RENDERER:
@@ -232,6 +245,14 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                                                           NULL, NULL,
                                                           0, G_MAXUINT64, 0,
                                                           G_PARAM_READABLE));
+
+    g_object_class_install_property (gobject_class,
+                                     PROP_BATTERIES,
+                                     g_param_spec_boxed ("batteries",
+                                                         NULL, NULL,
+                                                         G_TYPE_PTR_ARRAY,
+                                                         G_PARAM_READABLE));
+
     g_object_class_install_property (gobject_class,
                                      PROP_RENDERER,
                                      g_param_spec_string ("renderer",
@@ -452,6 +473,32 @@ read_mem_info(void)
     return res;
 }
 
+static GPtrArray *
+get_batteries (void)
+{
+    GPtrArray *batteries;
+    GList *supplies;
+    GList *l;
+    guint n;
+
+    supplies = gbb_power_supply_discover();
+
+    n = g_list_length(supplies);
+    batteries = g_ptr_array_new_full(n, g_object_unref);
+
+    for (l = supplies; l != NULL; l = l->next) {
+        if (GBB_IS_BATTERY(l->data)) {
+            g_ptr_array_add(batteries, l->data);
+        } else {
+            g_object_unref(l->data);
+        }
+    }
+
+    g_list_free(supplies);
+
+    return batteries;
+}
+
 static char *
 get_renderer_info (void)
 {
@@ -497,6 +544,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->os_kernel = read_kernel_version();
     info->cpu_info = read_cpu_info(&info->cpu_number);
     info->mem_total = read_mem_info();
+    info->batteries = get_batteries();
     info->renderer = get_renderer_info();
 }
 
@@ -546,6 +594,46 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             }
             json_builder_end_array(builder);
             json_builder_end_object(builder);
+        }
+
+        json_builder_set_member_name(builder, "batteries");
+        {
+            json_builder_begin_array(builder);
+            for (int i = 0; i < info->batteries->len; i++) {
+                GbbBattery *bat = g_ptr_array_index(info->batteries, i);
+                g_autofree char *vendor = NULL;
+                g_autofree char *model = NULL;
+                double volt_design;
+                double energy_full;
+                double energy_full_design;
+
+                g_object_get(bat,
+                             "vendor", &vendor,
+                             "model", &model,
+                             "voltage-design", &volt_design,
+                             "energy-full", &energy_full,
+                             "energy-full-design", &energy_full_design,
+                             NULL);
+
+                json_builder_begin_object(builder);
+                json_builder_set_member_name(builder, "vendor");
+                json_builder_add_string_value(builder, vendor);
+
+                json_builder_set_member_name(builder, "model");
+                json_builder_add_string_value(builder, model);
+
+                json_builder_set_member_name(builder, "voltage-design");
+                json_builder_add_double_value(builder, volt_design);
+
+                json_builder_set_member_name(builder, "energy-full");
+                json_builder_add_double_value(builder, energy_full);
+
+                json_builder_set_member_name(builder, "energy-full-design");
+                json_builder_add_double_value(builder, energy_full_design);
+
+                json_builder_end_object(builder);
+            }
+            json_builder_end_array(builder);
         }
 
         json_builder_set_member_name(builder, "renderer");
