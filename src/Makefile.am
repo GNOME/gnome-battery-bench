@@ -1,4 +1,4 @@
-EXTRA_DIST =
+EXTRA_DIST = integration-test
 
 bin_PROGRAMS=gnome-battery-bench gbb
 libexec_PROGRAMS=gnome-battery-bench-helper
@@ -79,3 +79,6 @@ gnome-battery-bench.gresource.c: $(ui_files)
         --sourcedir="$(srcdir)"               \
         --generate                            \
         --target $@ $<
+
+check-local: gbb
+	env top_builddir=$(top_builddir) $(srcdir)/integration-test -v

@@ -1,0 +1,170 @@
+#!/usr/bin/python3
+
+# gnome-battery-bench intergration test suite
+#
+#
+# Copyright: (C) 2017 Christian Kellner <gicmo@gnome.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+try:
+    import gi
+except ImportError as e:
+    sys.stderr.write('Skipping tests, PyGobject not available for Python 3, or missing GI typelibs: %s\n' % str(e))
+    sys.exit(0)
+
+try:
+    gi.require_version('UMockdev', '1.0')
+    from gi.repository import UMockdev
+except ImportError:
+    sys.stderr.write('Skipping tests, umockdev not available (https://launchpad.net/umockdev/)\n')
+    sys.exit(0)
+
+
+class Tests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # find the gbb binary
+        builddir = os.getenv('top_builddir', '.')
+        if os.access(os.path.join(builddir, 'src', 'gbb'), os.X_OK):
+            print('Testing binaries from local build tree')
+            cls.local_bins = True
+            cls.gbb_path = os.path.join(builddir, 'src', 'gbb')
+        elif os.environ.get('UNDER_JHBUILD', False):
+            print('Testing binaries from JHBuild')
+            jhbuild_prefix = os.environ['JHBUILD_PREFIX']
+            cls.gbb_path = os.path.join(jhbuild_prefix, 'bin', 'gbb')
+        else:
+            print('Testing installed system binaries')
+            cls.gbb_path = os.path.join('/usr', 'bin', 'gbb')
+
+        assert os.access(cls.gbb_path, os.X_OK), "could not execute gbb @ " + cls.gbb_path
+
+    def setUp(self):
+        '''Set up a local umockdev testbed.
+
+        The testbed is initially empty.
+        '''
+        self.testbed = UMockdev.Testbed.new()
+
+    def tearDown(self):
+        del self.testbed
+        self.gbb_stop()
+
+        errors = [x[1] for x in self._outcome.errors if x[1]]
+        if errors and self.logfile:
+            werr = sys.stderr.write
+            werr('\n' + 29 * '=' + ' gbb output ' + '=' * 29 + '\n')
+            with open(self.logfile.name) as f:
+                werr('\n' + 30 * '-' + '  stdout  ' + 30 * '-' + '\n')
+                werr(f.read())
+            with open(self.errfile.name) as f:
+                werr('\n' + 30 * '-' + '  stderr  ' + 30 * '-' + '\n')
+                werr(f.read())
+                werr('=' * 70 + '\n')
+
+        if self.logfile:
+            os.unlink(self.logfile.name)
+        if self.errfile:
+            os.unlink(self.errfile.name)
+
+    def gbb_start(self, command, params=None):
+        env = os.environ.copy()
+        env['G_DEBUG'] = 'fatal-criticals'
+
+        env['UMOCKDEV_DIR'] = self.testbed.get_root_dir()
+        self.logfile = tempfile.NamedTemporaryFile(delete=False)
+        self.errfile = tempfile.NamedTemporaryFile(delete=False)
+        gbb_path = [self.gbb_path, command] + (params or [])
+
+        if os.getenv('VALGRIND') is not None:
+            gbb_path = ['valgrind'] + gbb_path
+            if self.local_bins:
+                gbb_path = ['libtool', '--mode=execute'] + gbb_path
+
+        self.gbb_argv = gbb_path
+        self.env = env
+        self.gbb_proc = subprocess.Popen(gbb_path,
+                                         env=env,
+                                         stdout=self.logfile,
+                                         stderr=self.errfile)
+        return self.gbb_proc
+
+    def gbb(self, command, params=None):
+        gbb = self.gbb_start(command, params=params)
+        if gbb is not None:
+            gbb.communicate()
+            with open(self.logfile.name) as f:
+                return f.read()
+        return ""
+
+    def gbb_stop(self):
+        if self.gbb_proc is not None:
+            import signal
+            gbb = self.gbb_proc
+            stopped = False
+            for x in [0.1, 0.4, 0.5]:
+                time.sleep(x)
+                stopped = gbb.returncode is not None
+                if stopped:
+                    break
+            if not stopped:
+                try:
+                    gbb.send_signal(signal.SIGINT)
+                except OSError:
+                    pass
+                gbb.wait()
+        self.gbb_proc = None
+
+    def log(self):
+        with open(self.logfile.name) as f:
+            return f.read()
+        return ""
+
+    def test_basic(self):
+        vendor = 'GNOME.org'
+        model = 'B1'
+
+        self.testbed.add_device('power_supply', 'AC', None,
+                                ['type', 'Mains', 'online', '0'], [])
+        self.testbed.add_device('power_supply', 'BAT0', None,
+                                ['type', 'Battery',
+                                 'manufacturer', vendor,
+                                 'model_name', model,
+                                 'present', '1',
+                                 'status', 'Discharging',
+                                 'energy_full', '60000000',
+                                 'energy_full_design', '80000000',
+                                 'energy_now', '48000000',
+                                 'voltage_now', '12000000'], [])
+
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+        self.assertTrue('hardware' in out)
+        self.assertTrue('batteries' in out['hardware'])
+        bats = out['hardware']['batteries']
+        self.assertEqual(len(bats), 1)
+        self.assertEqual(bats[0]['vendor'], vendor)
+        self.assertEqual(bats[0]['model'], model)
+
+
+if __name__ == '__main__':
+    if 'umockdev' not in os.environ.get('LD_PRELOAD', ''):
+        os.execvp('umockdev-wrapper', ['umockdev-wrapper'] + sys.argv)
+    unittest.main()
