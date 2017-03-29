@@ -137,22 +137,27 @@ class Tests(unittest.TestCase):
             return f.read()
         return ""
 
+    def add_std_power_supply(self, vendor='GNOME.org', model='B1'):
+        ac = self.testbed.add_device('power_supply', 'AC', None,
+                                     ['type', 'Mains', 'online', '0'], [])
+
+        b0 = self.testbed.add_device('power_supply', 'BAT0', None,
+                                     ['type', 'Battery',
+                                      'manufacturer', vendor,
+                                      'model_name', model,
+                                      'present', '1',
+                                      'status', 'Discharging',
+                                      'energy_full', '60000000',
+                                      'energy_full_design', '80000000',
+                                      'energy_now', '48000000',
+                                      'voltage_now', '11000000'], [])
+        return ac, b0
+
     def test_basic(self):
         vendor = 'GNOME.org'
         model = 'B1'
 
-        self.testbed.add_device('power_supply', 'AC', None,
-                                ['type', 'Mains', 'online', '0'], [])
-        self.testbed.add_device('power_supply', 'BAT0', None,
-                                ['type', 'Battery',
-                                 'manufacturer', vendor,
-                                 'model_name', model,
-                                 'present', '1',
-                                 'status', 'Discharging',
-                                 'energy_full', '60000000',
-                                 'energy_full_design', '80000000',
-                                 'energy_now', '48000000',
-                                 'voltage_now', '12000000'], [])
+        self.add_std_power_supply(vendor=vendor, model=model)
 
         log = self.gbb("info", ["--json"])
         out = json.loads(log)
