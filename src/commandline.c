@@ -235,6 +235,7 @@ monitor(int argc, char **argv)
     GbbPowerMonitor *monitor;
     GMainLoop *loop;
 
+    g_print("Monitoring power events. Press Ctrl+C to cancel\n");
     monitor = gbb_power_monitor_new();
 
     g_signal_connect(monitor, "changed",
