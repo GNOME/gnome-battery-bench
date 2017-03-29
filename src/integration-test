@@ -37,6 +37,35 @@ except ImportError:
     sys.exit(0)
 
 
+class LogReader(object):
+    def __init__(self, path):
+        self.fd = open(path, 'r')
+        self.timeout = [0.3, 0.7, 1.0]
+
+    def _check_text_in_log(self, text):
+        lines = self.fd.readlines()
+        return any([text in l for l in lines])
+
+    def wait_for_text(self, text):
+        for t in self.timeout:
+            if self._check_text_in_log(text):
+                return True
+            time.sleep(t)
+        self._check_text_in_log(text)
+
+    def __contains__(self, text):
+        return self.wait_for_text(text)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        if self.fd is None:
+            return
+        self.fd.close()
+        self.fd = None
+
+
 class Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -133,9 +162,7 @@ class Tests(unittest.TestCase):
         self.gbb_proc = None
 
     def log(self):
-        with open(self.logfile.name) as f:
-            return f.read()
-        return ""
+        return LogReader(self.logfile.name)
 
     def add_std_power_supply(self, vendor='GNOME.org', model='B1'):
         ac = self.testbed.add_device('power_supply', 'AC', None,
@@ -167,6 +194,26 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(bats), 1)
         self.assertEqual(bats[0]['vendor'], vendor)
         self.assertEqual(bats[0]['model'], model)
+
+    def test_basic_monitor(self):
+        ac, b0 = self.add_std_power_supply()
+
+        self.gbb_start('monitor')
+        log = self.log()
+
+        self.assertIn('Monitoring power events', log)
+
+        self.testbed.set_attribute(b0, 'energy_now', '40000000')
+        self.assertIn('40.00 WH', log)
+        self.testbed.set_attribute(b0, 'energy_now', '30000000')
+        self.assertIn('30.00 WH', log)
+        self.testbed.set_attribute(b0, 'energy_now', '25000000')
+        self.assertIn('25.00 WH', log)
+        self.testbed.set_attribute(ac, 'online', '1')
+        self.assertIn('AC: online', log)
+
+        log.close()
+        self.gbb_stop()
 
 
 if __name__ == '__main__':
