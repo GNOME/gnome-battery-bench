@@ -192,6 +192,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('batteries' in out['hardware'])
         bats = out['hardware']['batteries']
         self.assertEqual(len(bats), 1)
+        self.assertEqual(bats[0]['name'], 'BAT0')
         self.assertEqual(bats[0]['vendor'], vendor)
         self.assertEqual(bats[0]['model'], model)
 
