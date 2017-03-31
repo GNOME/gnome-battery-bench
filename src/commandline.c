@@ -36,6 +36,7 @@ static GOptionEntry info_options[] =
 static void
 info_txt_battery(GbbBattery *bat, const char *prefix)
 {
+    g_autofree char *name = NULL;
     g_autofree char *vendor = NULL;
     g_autofree char *model = NULL;
     double volt_design;
@@ -43,6 +44,7 @@ info_txt_battery(GbbBattery *bat, const char *prefix)
     double energy_full_design;
 
     g_object_get(bat,
+                 "name", &name,
                  "vendor", &vendor,
                  "model", &model,
                  "voltage-design", &volt_design,
@@ -51,6 +53,7 @@ info_txt_battery(GbbBattery *bat, const char *prefix)
                  NULL);
 
     g_print("%s Battery:\n", prefix);
+    g_print("%s   Name: %s\n", prefix, name);
     g_print("%s   Vendor: %s\n", prefix, vendor);
     g_print("%s   Model: %s\n", prefix, model);
     g_print("%s   Voltage Design: %5.2f V\n", prefix, volt_design);

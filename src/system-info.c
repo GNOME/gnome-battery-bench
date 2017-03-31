@@ -601,6 +601,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_begin_array(builder);
             for (int i = 0; i < info->batteries->len; i++) {
                 GbbBattery *bat = g_ptr_array_index(info->batteries, i);
+                g_autofree char *name = NULL;
                 g_autofree char *vendor = NULL;
                 g_autofree char *model = NULL;
                 double volt_design;
@@ -608,6 +609,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                 double energy_full_design;
 
                 g_object_get(bat,
+                             "name", &name,
                              "vendor", &vendor,
                              "model", &model,
                              "voltage-design", &volt_design,
@@ -616,6 +618,10 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                              NULL);
 
                 json_builder_begin_object(builder);
+
+                json_builder_set_member_name(builder, "name");
+                json_builder_add_string_value(builder, name);
+
                 json_builder_set_member_name(builder, "vendor");
                 json_builder_add_string_value(builder, vendor);
 
