@@ -11,11 +11,13 @@
 
 typedef struct _GbbPowerSupplyPrivate {
     GUdevDevice *udevice;
+    char        *id;
 } GbbPowerSupplyPrivate;
 
 enum {
     PROP_SUPPLY_0,
     PROP_UDEV_DEVICE,
+    PROP_NAME,
     PROP_SUPPLY_LAST
 };
 
@@ -46,11 +48,17 @@ gbb_power_supply_get_property(GObject    *object,
 {
     GbbPowerSupply *ps = GBB_POWER_SUPPLY(object);
     GbbPowerSupplyPrivate *priv = SUPPLY_GET_PRIV(ps);
+    const char *name;
 
     switch (prop_id) {
 
     case PROP_UDEV_DEVICE:
         g_value_set_object(value, priv->udevice);
+        break;
+
+    case PROP_NAME:
+        name = g_udev_device_get_name(priv->udevice);
+        g_value_set_string(value, name);
         break;
     }
 }
@@ -87,6 +95,12 @@ gbb_power_supply_class_init(GbbPowerSupplyClass *klass)
                             G_UDEV_TYPE_DEVICE,
                             G_PARAM_READWRITE |
                             G_PARAM_CONSTRUCT_ONLY |
+                            G_PARAM_STATIC_NAME);
+
+    supply_props[PROP_NAME] =
+        g_param_spec_string("name", NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
                             G_PARAM_STATIC_NAME);
 
     g_object_class_install_properties(gobject_class,
