@@ -164,6 +164,15 @@ class Tests(unittest.TestCase):
     def log(self):
         return LogReader(self.logfile.name)
 
+    def add_std_platform(self):
+        self.testbed.add_device('dmi', 'virtual/dmi/id', None,
+                                ['sys_vendor', 'GNOME.org',
+                                 'product_name', 'hal',
+                                 'product_version', '9000',
+                                 'bios_vendor', 'bios.GNOME.org',
+                                 'bios_version', '9k',
+                                 'bios_date', '01/23/1997'], [])
+
     def add_std_power_supply(self, vendor='GNOME.org', model='B1'):
         ac = self.testbed.add_device('power_supply', 'AC', None,
                                      ['type', 'Mains', 'online', '0'], [])
@@ -184,13 +193,23 @@ class Tests(unittest.TestCase):
         vendor = 'GNOME.org'
         model = 'B1'
 
+        self.add_std_platform()
         self.add_std_power_supply(vendor=vendor, model=model)
 
         log = self.gbb("info", ["--json"])
         out = json.loads(log)
         self.assertTrue('hardware' in out)
-        self.assertTrue('batteries' in out['hardware'])
-        bats = out['hardware']['batteries']
+        hw = out['hardware']
+        self.assertEqual(hw['vendor'], 'GNOME.org')
+        self.assertEqual(hw['name'], 'hal')
+        self.assertEqual(hw['version'], '9000')
+        self.assertIn('bios', hw)
+        bios = hw['bios']
+        self.assertEqual(bios['vendor'], 'bios.GNOME.org')
+        self.assertEqual(bios['date'], '01/23/1997')
+        self.assertEqual(bios['version'], '9k')
+        self.assertTrue('batteries' in hw)
+        bats = hw['batteries']
         self.assertEqual(len(bats), 1)
         self.assertEqual(bats[0]['name'], 'BAT0')
         self.assertEqual(bats[0]['vendor'], vendor)
