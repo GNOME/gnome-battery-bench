@@ -190,6 +190,28 @@ class Tests(unittest.TestCase):
         return ac, b0
 
     def test_basic(self):
+        '''Basic system information (model, bios, etc)
+
+        In the first run we ensure that we get 'Unknown' for all
+        fields that we haven't set in /sys, then we fill them for them
+        second run and check we get the right values
+        '''
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+
+        self.assertIn('hardware', out)
+        hw = out['hardware']
+        for key in ['vendor', 'version', 'name']:
+            self.assertEqual(hw[key], 'Unknown')
+        self.assertIn('bios', hw)
+        bios = hw['bios']
+        for key in ['vendor', 'version', 'date']:
+            self.assertEqual(bios[key], 'Unknown')
+
+        self.assertIn('batteries', hw)
+        self.assertEqual(len(hw['batteries']), 0)
+
+        # now with devices in /sys/
         vendor = 'GNOME.org'
         model = 'B1'
 
