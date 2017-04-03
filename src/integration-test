@@ -257,6 +257,32 @@ class Tests(unittest.TestCase):
         log.close()
         self.gbb_stop()
 
+    def test_charge_basic(self):
+        self.add_std_platform()
+
+        self.testbed.add_device('power_supply', 'BAT0', None,
+                                ['type', 'Battery',
+                                 'manufacturer', 'GNOME.org',
+                                 'model_name', 'b1',
+                                 'present', '1',
+                                 'status', 'Discharging',
+                                 'charge_full', '7226000',
+                                 'charge_full_design', '7150000',
+                                 'charge_now', '4234000',
+                                 'voltage_min_design', '7600000'], [])
+
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+        self.assertTrue('hardware' in out)
+        hw = out['hardware']
+        self.assertTrue('batteries' in hw)
+        bats = hw['batteries']
+        self.assertEqual(len(bats), 1)
+        b1 = bats[0]
+        self.assertEqual(b1['voltage-design'], 7.6)
+        self.assertEqual(b1['energy-full'], 54.9176)
+        self.assertEqual(b1['energy-full-design'], 54.34)
+
 
 if __name__ == '__main__':
     if 'umockdev' not in os.environ.get('LD_PRELOAD', ''):
