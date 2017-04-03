@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <X11/Xlib.h>
+#include <gdk/gdk.h>
 
 #include <glib.h>
 #include <glib-unix.h>
@@ -76,6 +77,12 @@ info_txt(int argc, char **argv)
     guint            cpu_number;
     guint64          mem_total;
     g_autofree char *renderer;
+    int monitor_x;
+    int monitor_y;
+    int monitor_width;
+    int monitor_height;
+    float monitor_refresh;
+    float monitor_scale;
     g_autofree char *os_type;
     g_autofree char *os_kernel;
     g_autofree char *gnome_version;
@@ -97,6 +104,12 @@ info_txt(int argc, char **argv)
                  "mem-total", &mem_total,
                  "batteries", &batteries,
                  "renderer", &renderer,
+                 "monitor-x", &monitor_x,
+                 "monitor-y", &monitor_y,
+                 "monitor-width", &monitor_width,
+                 "monitor-height", &monitor_height,
+                 "monitor-refresh", &monitor_refresh,
+                 "monitor-scale", &monitor_scale,
                  "os-type", &os_type,
                  "os-kernel", &os_kernel,
                  "gnome-version", &gnome_version,
@@ -117,6 +130,11 @@ info_txt(int argc, char **argv)
     g_print("  Batteries:\n");
     g_ptr_array_foreach(batteries, (GFunc) info_txt_battery, "  ");
     g_print("  Renderer: %s\n", renderer);
+    g_print("  Monitor:\n");
+    g_print("    Resolution: %d x %d (px)\n", monitor_x, monitor_y);
+    g_print("    Size: %d x %d (mm)\n", monitor_width, monitor_height);
+    g_print("    Refresh %2.3f\n", monitor_refresh);
+    g_print("    Scale-Factor: %1.1f\n", monitor_scale);
     g_print("  Memory:\n");
     g_print("   Total: %" G_GUINT64_FORMAT " kB\n", mem_total);
     g_print("  Bios:\n");
@@ -168,6 +186,7 @@ info_json(int argc, char **argv)
 static int
 info(int argc, char **argv)
 {
+    gdk_init_check(&argc, &argv);
     if (info_usejson) {
         return info_json(argc, argv);
     } else {
