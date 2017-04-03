@@ -315,6 +315,60 @@ class Tests(unittest.TestCase):
         log.close()
         self.gbb_stop()
 
+    def test_multiple_batteries(self):
+
+        self.add_std_platform()
+
+        self.testbed.add_device('power_supply', 'AC', None,
+                                ['type', 'Mains', 'online', '0'], [])
+
+        b0 = self.testbed.add_device('power_supply', 'BAT0', None,
+                                     ['type', 'Battery',
+                                      'manufacturer', 'GNOME.org',
+                                      'model_name', 'b1',
+                                      'present', '1',
+                                      'status', 'Discharging',
+                                      'energy_full', '21920000',
+                                      'energy_full_design', '26330000',
+                                      'energy_now', '10000000',
+                                      'voltage_min_design', '114000000'], [])
+
+        b1 = self.testbed.add_device('power_supply', 'BAT1', None,
+                                     ['type', 'Battery',
+                                      'manufacturer', 'GNOME.org',
+                                      'model_name', 'b2',
+                                      'present', '1',
+                                      'status', 'Discharging',
+                                      'energy_full', '22640000',
+                                      'energy_full_design', '23510000',
+                                      'energy_now', '11000000',
+                                      'voltage_min_design', '112500000'], [])
+
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+        self.assertTrue('hardware' in out)
+        hw = out['hardware']
+        self.assertTrue('batteries' in hw)
+        bats = hw['batteries']
+        self.assertEqual(len(bats), 2)
+
+        self.gbb_start('monitor')
+        log = self.log()
+
+        self.assertIn('Monitoring power events', log)
+
+        self.testbed.set_attribute(b0, 'energy_now', '09000000')
+        self.assertIn('20.00 WH', log)
+
+        self.testbed.set_attribute(b1, 'energy_now', '10000000')
+        self.assertIn('19.00 WH', log)
+
+        self.testbed.set_attribute(b0, 'energy_now', '0')
+        self.assertIn('10.00 WH', log)
+
+        log.close()
+        self.gbb_stop()
+
 
 if __name__ == '__main__':
     if 'umockdev' not in os.environ.get('LD_PRELOAD', ''):
