@@ -184,8 +184,6 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
     g_print("AC: %s\n", state->online ? "online" : "offline");
     if (state->energy_now >= 0)
         g_print("Energy: %.2f WH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
-    else if (state->capacity_now >= 0)
-        g_print("Capacity: %.2f%%\n", gbb_power_state_get_percent(state));
 
     if (runner != NULL) {
         GbbTestRun *run = gbb_test_runner_get_run(runner);
