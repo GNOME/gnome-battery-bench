@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/poll.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <X11/Xlib.h>
@@ -180,10 +181,17 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbTestRunner   *runner)
 {
     const GbbPowerState *state = gbb_power_monitor_get_state(monitor);
+    char time_str[256] = { 0 };
+    time_t now;
 
+    time (&now);
+    strftime (time_str, sizeof (time_str), "%H:%M:%S ", localtime (&now));
+
+    g_print("%s", time_str);
     g_print("AC: %s\n", state->online ? "online" : "offline");
-    if (state->energy_now >= 0)
-        g_print("Energy: %.2f WH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
+
+    g_print("%s", time_str);
+    g_print("Energy: %.2f WH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
 
     if (runner != NULL) {
         GbbTestRun *run = gbb_test_runner_get_run(runner);
@@ -204,19 +212,25 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
 
     GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, state);
 
-    if (statistics->power >= 0)
+    if (statistics->power >= 0) {
+        g_print("%s", time_str);
         g_print("Average power: %.2f W\n", statistics->power);
-    if (statistics->current >= 0)
+    }
+    if (statistics->current >= 0) {
+        g_print("%s", time_str);
         g_print("Average current: %.2f A\n", statistics->current);
+    }
     if (statistics->battery_life >= 0) {
         int h, m, s;
         break_time(statistics->battery_life, &h, &m, &s);
+        g_print("%s", time_str);
         g_print("Predicted battery life: %.0fs (%d:%02d:%02d)\n",
                 statistics->battery_life, h, m, s);
     }
     if (statistics->battery_life_design >= 0) {
         int h, m, s;
         break_time(statistics->battery_life_design, &h, &m, &s);
+        g_print("%s", time_str);
         g_print("Predicted battery life (design): %.0fs (%d:%02d:%02d)\n",
                 statistics->battery_life_design, h, m, s);
     }
@@ -235,7 +249,13 @@ monitor(int argc, char **argv)
 {
     GbbPowerMonitor *monitor;
     GMainLoop *loop;
+    char time_str[256] = { 0 };
+    time_t now;
 
+    time (&now);
+    strftime (time_str, sizeof (time_str), "%Y-%m-%d %H:%M:%S ", localtime (&now));
+
+    g_print ("%s", time_str);
     g_print("Monitoring power events. Press Ctrl+C to cancel\n");
     monitor = gbb_power_monitor_new();
 
