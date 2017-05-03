@@ -254,15 +254,17 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
 
     double time_elapsed = (current->time_us - base->time_us) / 1000000.;
 
-    if (current->energy_now >= 0 && time_elapsed > 0) {
-        double energy_used = base->energy_now - current->energy_now;
-        if (energy_used > 0) {
-            statistics->power = 3600 * (energy_used) / time_elapsed;
-            if (base->energy_full >= 0)
-                statistics->battery_life = 3600 * base->energy_full / statistics->power;
-            if (base->energy_full_design >= 0)
-                statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
-        }
+    if (time_elapsed < (UPDATE_FREQUENCY / 1000.)) {
+        return statistics;
+    }
+
+    double energy_used = base->energy_now - current->energy_now;
+    if (energy_used > 0) {
+        statistics->power = 3600 * (energy_used) / time_elapsed;
+        if (base->energy_full >= 0)
+            statistics->battery_life = 3600 * base->energy_full / statistics->power;
+        if (base->energy_full_design >= 0)
+            statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
     }
 
     return statistics;
