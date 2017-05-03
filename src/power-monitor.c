@@ -40,12 +40,7 @@ gbb_power_state_free(GbbPowerState   *state)
 double
 gbb_power_state_get_percent (const GbbPowerState *state)
 {
-    if (state->energy_full >= 0)
-        return 100 * state->energy_now / state->energy_full;
-    else if (state->capacity_now >= 0)
-        return 100 * state->capacity_now;
-    else
-        return -1;
+    return 100 * state->energy_now / state->energy_full;
 }
 
 static gboolean
@@ -148,7 +143,6 @@ gbb_power_state_init(GbbPowerState *state)
     state->energy_now = -1.0;
     state->energy_full = -1.0;
     state->energy_full_design = -1.0;
-    state->capacity_now = -1.0;
     state->voltage_now = -1.0;
 }
 
@@ -269,10 +263,6 @@ gbb_power_statistics_compute (const GbbPowerState   *base,
             if (base->energy_full_design >= 0)
                 statistics->battery_life_design = 3600 * base->energy_full_design / statistics->power;
         }
-    } else if (current->capacity_now >= 0 && time_elapsed > 0) {
-        double capacity_used = base->capacity_now - current->capacity_now;
-        if (capacity_used > 0)
-            statistics->battery_life = 3600 * time_elapsed / capacity_used;
     }
 
     return statistics;

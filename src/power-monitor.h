@@ -21,7 +21,6 @@ struct _GbbPowerState {
     double energy_now; /* WH */
     double energy_full;
     double energy_full_design;
-    double capacity_now; /* 0 - 1.0 */
     double voltage_now;
 };
 

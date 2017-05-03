@@ -401,10 +401,6 @@ gbb_test_run_write_to_file(GbbTestRun *run,
             json_builder_set_member_name(builder, "energy-full-design");
             add_int_value_1e6(builder, state->energy_full_design);
         }
-        if (state->capacity_now >= 0) {
-            json_builder_set_member_name(builder, "capacity");
-            add_int_value_1e6(builder, state->capacity_now);
-        }
 
         json_builder_end_object(builder);
         last_state = state;
@@ -723,8 +719,6 @@ read_from_file(GbbTestRun *run,
             if (get_int_1e6(node_object, "energy-full", &state->energy_full, error) == ERROR)
                 goto out;
             if (get_int_1e6(node_object, "energy-full-design", &state->energy_full_design, error) == ERROR)
-                goto out;
-            if (get_int_1e6(node_object, "capacity", &state->capacity_now, error) == ERROR)
                 goto out;
 
             test_run_add_internal(run, state);
