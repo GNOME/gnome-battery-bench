@@ -5,6 +5,7 @@ EXTRA_DIST = integration-test
 AM_CPPFLAGS =	                                                \
 	-DPKGDATADIR=\"$(pkgdatadir)\"                          \
 	-DDATADIR=\"$(datadir)\"                                \
+	-DGNOME_SESSION_DIR="\"$(gnome_session_libexecdir)\""	\
 	$(NULL)
 
 bin_PROGRAMS=gnome-battery-bench gbb

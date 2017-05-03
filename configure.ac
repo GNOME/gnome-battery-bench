@@ -33,6 +33,18 @@ AM_CONDITIONAL(BUILD_DOCS, [ test $ASCIIDOC != x  -a $XMLTO != x ])
 GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
 AC_SUBST(GLIB_COMPILE_RESOURCES)
 
+dnl needed to locate gnome-session-check-accelerated
+AC_ARG_WITH([gnome-session-libexecdir],
+	    AS_HELP_STRING([--with-gnome-session-libexecdir=DIR], [Directory for gnome-session s libexecdir]),
+	    [],
+	    [with_gnome_session_libexecdir=${libexecdir}])
+if test x$with_gnome_session_libexecdir == xno; then
+	with_gnome_session_libexecdir=${libexecdir}
+fi
+AS_AC_EXPAND(GNOMESESSIONDIR, $with_gnome_session_libexecdir)
+AC_SUBST([gnome_session_libexecdir], [$GNOMESESSIONDIR])
+
+
 GNOME_COMPILE_WARNINGS([error])
 case "$WARN_CFLAGS" in
     *-Werror*)

@@ -500,12 +500,12 @@ get_batteries (void)
 }
 
 static char *
-get_renderer_info (void)
+get_renderer_from_session (void)
 {
     g_autoptr(GDBusProxy) proxy = NULL;
     g_autoptr(GVariant) var = NULL;
     g_autoptr(GError) error = NULL;
-    const char *renderer = "Unknown";
+    const char *renderer = NULL;
 
     proxy = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION,
                                           G_DBUS_PROXY_FLAGS_NONE,
@@ -518,19 +518,69 @@ get_renderer_info (void)
     if (error != NULL) {
         g_warning("Failed to connect to org.gnome.SessionManager: %s",
                   error->message);
-        goto out;
+        return NULL;
     }
 
     var = g_dbus_proxy_get_cached_property(proxy, "Renderer");
     if (!var) {
         g_warning("Failed to obtain 'Renderer' property from org.gnome.SessionManager");
-        goto out;
+        return NULL;
     }
 
     renderer = g_variant_get_string(var, NULL);
 
-out:
+    if (renderer != NULL && renderer[0] != '\0') {
+        return NULL;
+    }
+
     return g_strstrip(g_strdup(renderer));
+}
+
+static char *
+get_renderer_from_helper (void)
+{
+    g_autoptr(GError) error = NULL;
+    char *argv[] = { GNOME_SESSION_DIR "/gnome-session-check-accelerated", NULL };
+    char *stdout_str = NULL;
+    int exit_status;
+    gboolean ok;
+
+    ok = g_spawn_sync(NULL,
+                      (char **) argv,
+                      NULL,
+                      G_SPAWN_STDERR_TO_DEV_NULL,
+                      NULL, NULL,
+                      &stdout_str,
+                      NULL,
+                      &exit_status,
+                      &error);
+
+    if (!ok || !g_spawn_check_exit_status(exit_status, &error) ||
+        stdout_str == NULL || stdout_str[0] == '\0') {
+        g_warning("Failed to obtain get renderer via helper binary: %s",
+                  error->message);
+        return NULL;
+    }
+
+    return g_strstrip(stdout_str);
+}
+
+static char *
+get_renderer_info (void)
+{
+    char *renderer = NULL;
+
+    renderer = get_renderer_from_session();
+    if (renderer != NULL) {
+        return renderer;
+    }
+
+    renderer = get_renderer_from_helper();
+    if (renderer != NULL) {
+        return renderer;
+    }
+
+    return g_strdup("Unknown");
 }
 
 
