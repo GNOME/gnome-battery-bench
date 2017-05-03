@@ -1,4 +1,11 @@
+NULL =
+
 EXTRA_DIST = integration-test
+
+AM_CPPFLAGS =	                                                \
+	-DPKGDATADIR=\"$(pkgdatadir)\"                          \
+	-DDATADIR=\"$(datadir)\"                                \
+	$(NULL)
 
 bin_PROGRAMS=gnome-battery-bench gbb
 libexec_PROGRAMS=gnome-battery-bench-helper
@@ -38,7 +45,7 @@ client_sources =				\
 	xinput-wait.c				\
 	xinput-wait.h
 
-gnome_battery_bench_CPPFLAGS = $(APPLICATION_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\" -DDATADIR=\"$(datadir)\"
+gnome_battery_bench_CPPFLAGS =  $(AM_CPPFLAGS) $(APPLICATION_CFLAGS)
 gnome_battery_bench_LDADD = $(APPLICATION_LIBS)
 
 gnome_battery_bench_SOURCES =			\
@@ -52,14 +59,14 @@ gnome_battery_bench_SOURCES =			\
 	util-gtk.h				\
 	gnome-battery-bench.gresource.c
 
-gbb_CPPFLAGS = $(COMMANDLINE_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\" -DDATADIR=\"$(datadir)\"
+gbb_CPPFLAGS =  $(AM_CPPFLAGS) $(COMMANDLINE_CFLAGS)
 gbb_LDADD = $(COMMANDLINE_LIBS)
 
 gbb_SOURCES =					\
 	$(client_sources)			\
 	commandline.c
 
-gnome_battery_bench_helper_CPPFLAGS = $(HELPER_CFLAGS) -DPKGDATADIR=\"$(pkgdatadir)\"
+gnome_battery_bench_helper_CPPFLAGS =  $(AM_CPPFLAGS) $(HELPER_CFLAGS)
 gnome_battery_bench_helper_LDADD = $(HELPER_LIBS)
 
 gnome_battery_bench_helper_SOURCES =		\
