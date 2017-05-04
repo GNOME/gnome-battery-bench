@@ -7,6 +7,13 @@
 
 #include <gdk/gdk.h>
 
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
+#ifdef GDK_WINDOWING_X11
+#include <gdk/gdkx.h>
+#endif
+
 #include "power-supply.h"
 
 #include "config.h"
@@ -51,6 +58,8 @@ struct _GbbSystemInfo {
     char *os_type;
     char *os_kernel;
 
+    char *display_proto;
+
     /*  GNOME */
     char *gnome_version;
     char *gnome_distributor;
@@ -85,6 +94,8 @@ enum {
 
     PROP_OS_TYPE,
     PROP_OS_KERNEL,
+
+    PROP_DISPLAY_PROTO,
 
     PROP_GNOME_VERSION,
     PROP_GNOME_DISTRIBUTOR,
@@ -122,6 +133,8 @@ gbb_system_info_finalize(GbbSystemInfo *info)
 
     g_free(info->os_type);
     g_free(info->os_kernel);
+
+    g_free(info->display_proto);
 
     g_free(info->gnome_version);
     g_free(info->gnome_distributor);
@@ -212,6 +225,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_OS_KERNEL:
         g_value_set_string(value, info->os_kernel);
+        break;
+
+    case PROP_DISPLAY_PROTO:
+        g_value_set_string(value, info->display_proto);
         break;
 
     case PROP_GNOME_VERSION:
@@ -344,6 +361,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                             G_PARAM_READABLE);
     props[PROP_OS_TYPE] =
         g_param_spec_string("os-type",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_DISPLAY_PROTO] =
+        g_param_spec_string("display-proto",
                             NULL, NULL,
                             NULL,
                             G_PARAM_READABLE);
@@ -752,6 +775,20 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     }
 
     load_monitor_info(info, display);
+
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY(display)) {
+        info->display_proto = g_strdup("Wayland");
+    }
+#endif
+#ifdef GDK_WINDOWING_X11
+    if (info->display_proto == NULL && GDK_IS_X11_DISPLAY (display)) {
+        info->display_proto = g_strdup("X11");
+    }
+#endif
+    if (info->display_proto == NULL) {
+        info->display_proto = g_strdup("Unknown");
+    }
 }
 
 GbbSystemInfo *
@@ -898,6 +935,10 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_add_string_value(builder, info->os_kernel);
             json_builder_end_object(builder);
         }
+
+        json_builder_set_member_name(builder, "display-protocol");
+        json_builder_add_string_value(builder, info->display_proto);
+
         json_builder_set_member_name(builder, "gnome");
         {
             json_builder_begin_object(builder);
