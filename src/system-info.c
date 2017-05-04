@@ -108,6 +108,8 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_free(info->gnome_distributor);
     g_free(info->gnome_date);
 
+    g_free(info->renderer);
+
     G_OBJECT_CLASS(gbb_system_info_parent_class)->finalize(G_OBJECT (info));
 }
 
