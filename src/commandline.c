@@ -85,6 +85,7 @@ info_txt(int argc, char **argv)
     float monitor_scale;
     g_autofree char *os_type;
     g_autofree char *os_kernel;
+    g_autofree char *display_proto;
     g_autofree char *gnome_version;
     g_autofree char *gnome_distributor;
     g_autofree char *gnome_date;
@@ -112,6 +113,7 @@ info_txt(int argc, char **argv)
                  "monitor-scale", &monitor_scale,
                  "os-type", &os_type,
                  "os-kernel", &os_kernel,
+                 "display-proto", &display_proto,
                  "gnome-version", &gnome_version,
                  "gnome-distributor", &gnome_distributor,
                  "gnome-date", &gnome_date,
@@ -145,6 +147,7 @@ info_txt(int argc, char **argv)
     g_print("  OS:\n");
     g_print("   Type: %s\n", os_type);
     g_print("   Kernel: %s\n", os_kernel);
+    g_print("  Display Protocol: %s\n", display_proto);
     g_print("  GNOME:\n");
     g_print("   Version: %s\n", gnome_version);
     g_print("   Distributor: %s\n", gnome_distributor);
