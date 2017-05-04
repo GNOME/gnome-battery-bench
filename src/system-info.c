@@ -93,6 +93,8 @@ enum {
     PROP_LAST
 };
 
+static GParamSpec *props[PROP_LAST] = { NULL, };
+
 G_DEFINE_TYPE (GbbSystemInfo, gbb_system_info, G_TYPE_OBJECT);
 
 /* prototypes  */
@@ -234,147 +236,139 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
     gobject_class->finalize = (GObjectFinalizeFunc) gbb_system_info_finalize;
     gobject_class->get_property = gbb_system_info_get_property;
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_SYS_VENDOR,
-                                     g_param_spec_string ("sys-vendor",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_PRODUCT_VERSION,
-                                     g_param_spec_string ("product-version",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_PRODUCT_NAME,
-                                     g_param_spec_string ("product-name",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_BIOS_VERSION,
-                                     g_param_spec_string ("bios-version",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_BIOS_DATE,
-                                     g_param_spec_string ("bios-date",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_BIOS_VENDOR,
-                                     g_param_spec_string ("bios-vendor",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_CPU_NUMBER,
-                                     g_param_spec_uint ("cpu-number",
-                                                        NULL, NULL,
-                                                        0, G_MAXUINT, 0,
-                                                        G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_CPU_INFO,
-                                     g_param_spec_boxed("cpu-info",
-                                                        NULL, NULL,
-                                                        G_TYPE_STRV,
-                                                        G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_MEM_TOTAL,
-                                     g_param_spec_uint64 ("mem-total",
-                                                          NULL, NULL,
-                                                          0, G_MAXUINT64, 0,
-                                                          G_PARAM_READABLE));
+    props[PROP_SYS_VENDOR] =
+        g_param_spec_string("sys-vendor",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_BATTERIES,
-                                     g_param_spec_boxed ("batteries",
-                                                         NULL, NULL,
-                                                         G_TYPE_PTR_ARRAY,
-                                                         G_PARAM_READABLE));
+    props[PROP_PRODUCT_VERSION] =
+        g_param_spec_string("product-version",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_MONITOR_X,
-                                     g_param_spec_int ("monitor-x",
-                                                       NULL, NULL,
-                                                       0, G_MAXINT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_PRODUCT_NAME] =
+        g_param_spec_string("product-name",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_MONITOR_Y,
-                                     g_param_spec_int ("monitor-y",
-                                                       NULL, NULL,
-                                                       0, G_MAXINT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_BIOS_VERSION] =
+        g_param_spec_string("bios-version",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_MONITOR_WIDTH,
-                                     g_param_spec_int ("monitor-width",
-                                                       NULL, NULL,
-                                                       0, G_MAXINT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_BIOS_DATE]  =
+        g_param_spec_string("bios-date",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_MONITOR_HEIGHT,
-                                     g_param_spec_int ("monitor-height",
-                                                       NULL, NULL,
-                                                       0, G_MAXINT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_BIOS_VENDOR] =
+        g_param_spec_string("bios-vendor",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property(gobject_class,
-                                    PROP_MONITOR_REFRESH,
-                                    g_param_spec_float("monitor-refresh",
-                                                       NULL, NULL,
-                                                       0, G_MAXFLOAT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_CPU_NUMBER] =
+        g_param_spec_uint("cpu-number",
+                          NULL, NULL,
+                          0, G_MAXUINT, 0,
+                          G_PARAM_READABLE);
 
-    g_object_class_install_property(gobject_class,
-                                    PROP_MONITOR_SCALE,
-                                    g_param_spec_float("monitor-scale",
-                                                       NULL, NULL,
-                                                       0, G_MAXFLOAT, 0,
-                                                       G_PARAM_READABLE));
+    props[PROP_CPU_INFO] =
+        g_param_spec_boxed("cpu-info",
+                           NULL, NULL,
+                           G_TYPE_STRV,
+                           G_PARAM_READABLE);
+    props[PROP_MEM_TOTAL] =
+        g_param_spec_uint64("mem-total",
+                            NULL, NULL,
+                            0, G_MAXUINT64, 0,
+                            G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_RENDERER,
-                                     g_param_spec_string ("renderer",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
+    props[PROP_BATTERIES] =
+        g_param_spec_boxed("batteries",
+                           NULL, NULL,
+                           G_TYPE_PTR_ARRAY,
+                           G_PARAM_READABLE);
 
-    g_object_class_install_property (gobject_class,
-                                     PROP_OS_KERNEL,
-                                     g_param_spec_string ("os-kernel",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_OS_TYPE,
-                                     g_param_spec_string ("os-type",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_GNOME_VERSION,
-                                     g_param_spec_string ("gnome-version",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_GNOME_DISTRIBUTOR,
-                                     g_param_spec_string ("gnome-distributor",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
-    g_object_class_install_property (gobject_class,
-                                     PROP_GNOME_DATE,
-                                     g_param_spec_string ("gnome-date",
-                                                          NULL, NULL,
-                                                          NULL,
-                                                          G_PARAM_READABLE));
+    props[PROP_RENDERER] =
+        g_param_spec_string("renderer",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_MONITOR_X] =
+        g_param_spec_int("monitor-x",
+                         NULL, NULL,
+                         0, G_MAXINT, 0,
+                         G_PARAM_READABLE);
+
+    props[PROP_MONITOR_Y] =
+        g_param_spec_int("monitor-y",
+                         NULL, NULL,
+                         0, G_MAXINT, 0,
+                         G_PARAM_READABLE);
+
+    props[PROP_MONITOR_WIDTH] =
+        g_param_spec_int("monitor-width",
+                         NULL, NULL,
+                         0, G_MAXINT, 0,
+                         G_PARAM_READABLE);
+
+    props[PROP_MONITOR_HEIGHT] =
+        g_param_spec_int("monitor-height",
+                         NULL, NULL,
+                         0, G_MAXINT, 0,
+                         G_PARAM_READABLE);
+
+    props[PROP_MONITOR_REFRESH] =
+        g_param_spec_float("monitor-refresh",
+                           NULL, NULL,
+                           0, G_MAXFLOAT, 0,
+                           G_PARAM_READABLE);
+
+    props[PROP_MONITOR_SCALE] =
+        g_param_spec_float("monitor-scale",
+                           NULL, NULL,
+                           0, G_MAXFLOAT, 0,
+                           G_PARAM_READABLE);
+
+    props[PROP_OS_KERNEL] =
+        g_param_spec_string("os-kernel",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+    props[PROP_OS_TYPE] =
+        g_param_spec_string("os-type",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_GNOME_VERSION] =
+        g_param_spec_string("gnome-version",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_GNOME_DISTRIBUTOR] =
+        g_param_spec_string("gnome-distributor",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_GNOME_DATE] =
+        g_param_spec_string("gnome-date",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    g_object_class_install_properties(gobject_class,
+                                      PROP_LAST,
+                                      props);
 }
 
 static char *
