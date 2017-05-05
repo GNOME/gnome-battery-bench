@@ -910,9 +910,6 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_object(builder);
         }
 
-        json_builder_set_member_name(builder, "renderer");
-        json_builder_add_string_value(builder, info->renderer);
-
         json_builder_set_member_name(builder, "memory");
         {
             json_builder_begin_object(builder);
@@ -923,6 +920,10 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
 
         json_builder_end_object(builder);
     }
+
+    json_builder_set_member_name(builder, "renderer");
+    json_builder_add_string_value(builder, info->renderer);
+
     json_builder_set_member_name(builder, "software");
     {
         json_builder_begin_object(builder);
