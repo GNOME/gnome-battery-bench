@@ -425,7 +425,7 @@ read_sysfs_string(const char *node)
                           "MESSAGE", "Reading sys file '%s' failed: %s.",
                           node, error->message);
         g_error_free(error);
-        return g_strdup("Unknown");
+        return NULL;
     }
 
     if (len > 1 && contents[len-1] == '\n') {
@@ -455,7 +455,7 @@ read_kernel_version(void)
     g_auto(GStrv) comps = NULL;
 
     if (data == NULL) {
-        return g_strdup("Unknown");
+        return NULL;
     }
 
     comps = g_strsplit(data, " ", 4);
@@ -489,11 +489,7 @@ read_cpu_info(guint *ncpus)
     GHashTableIter iter;
 
     if (data == NULL) {
-        models = g_new(char *, 2);
-        models[0] = g_strdup("Unknown");
-        models[1] = NULL;
-        *ncpus = 1;
-        return models;
+        return NULL;
     }
 
     cpus = g_hash_table_new (g_str_hash, g_str_equal);
@@ -695,7 +691,7 @@ get_renderer_info (void)
         return renderer;
     }
 
-    return g_strdup("Unknown");
+    return NULL;
 }
 
 static gboolean
@@ -798,9 +794,6 @@ static void gbb_system_info_init (GbbSystemInfo *info)
         info->display_proto = g_strdup("X11");
     }
 #endif
-    if (info->display_proto == NULL) {
-        info->display_proto = g_strdup("Unknown");
-    }
 }
 
 GbbSystemInfo *
