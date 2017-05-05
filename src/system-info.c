@@ -146,33 +146,45 @@ gbb_system_info_finalize(GbbSystemInfo *info)
 }
 
 static void
+value_set_string_or_unknown(GValue *value, const char *str)
+{
+    static const char *unknown = "Unknown";
+
+    if (str != NULL && str[0] != '\0') {
+        g_value_set_string(value, str);
+    } else {
+        g_value_set_static_string(value, unknown);
+    }
+}
+
+static void
 gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
 {
     GbbSystemInfo *info = GBB_SYSTEM_INFO(object);
 
     switch (prop_id) {
     case PROP_SYS_VENDOR:
-        g_value_set_string(value, info->sys_vendor);
+         value_set_string_or_unknown(value, info->sys_vendor);
         break;
 
     case PROP_PRODUCT_VERSION:
-        g_value_set_string(value, info->product_version);
+        value_set_string_or_unknown(value, info->product_version);
         break;
 
     case PROP_PRODUCT_NAME:
-        g_value_set_string(value, info->product_name);
+        value_set_string_or_unknown(value, info->product_name);
         break;
 
     case PROP_BIOS_VERSION:
-        g_value_set_string(value, info->bios_version);
+        value_set_string_or_unknown(value, info->bios_version);
         break;
 
     case PROP_BIOS_DATE:
-        g_value_set_string(value, info->bios_date);
+        value_set_string_or_unknown(value, info->bios_date);
         break;
 
     case PROP_BIOS_VENDOR:
-        g_value_set_string(value, info->bios_vendor);
+        value_set_string_or_unknown(value, info->bios_vendor);
         break;
 
     case PROP_CPU_NUMBER:
@@ -216,31 +228,31 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
         break;
 
     case PROP_RENDERER:
-        g_value_set_string(value, info->renderer);
+        value_set_string_or_unknown(value, info->renderer);
         break;
 
     case PROP_OS_TYPE:
-        g_value_set_string(value, info->os_type);
+        value_set_string_or_unknown(value, info->os_type);
         break;
 
     case PROP_OS_KERNEL:
-        g_value_set_string(value, info->os_kernel);
+        value_set_string_or_unknown(value, info->os_kernel);
         break;
 
     case PROP_DISPLAY_PROTO:
-        g_value_set_string(value, info->display_proto);
+        value_set_string_or_unknown(value, info->display_proto);
         break;
 
     case PROP_GNOME_VERSION:
-        g_value_set_string(value, info->gnome_version);
+        value_set_string_or_unknown(value, info->gnome_version);
         break;
 
     case PROP_GNOME_DISTRIBUTOR:
-        g_value_set_string(value, info->gnome_distributor);
+        value_set_string_or_unknown(value, info->gnome_distributor);
         break;
 
     case PROP_GNOME_DATE:
-        g_value_set_string(value, info->gnome_date);
+        value_set_string_or_unknown(value, info->gnome_date);
         break;
     }
 
