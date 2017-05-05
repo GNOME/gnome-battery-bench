@@ -349,7 +349,7 @@ read_kernel_version(void)
     if (g_strv_length (comps) < 3) {
         char *tmp = data;
         data = NULL;
-        return tmp;
+        return g_strdup(tmp);
     }
 
     return g_strdup(comps[2]);
