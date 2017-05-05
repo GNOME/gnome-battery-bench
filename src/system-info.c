@@ -45,6 +45,7 @@ struct _GbbSystemInfo {
     char *renderer;
 
     /* Monitor */
+    gboolean monitor_valid;
     int monitor_x;
     int monitor_y;
     int monitor_width;
@@ -61,6 +62,7 @@ struct _GbbSystemInfo {
     char *display_proto;
 
     /*  GNOME */
+    gboolean gnome_valid;
     char *gnome_version;
     char *gnome_distributor;
     char *gnome_date;
@@ -752,6 +754,7 @@ load_monitor_info(GbbSystemInfo *info,
         return;
     }
 
+    info->monitor_valid = TRUE;
     info->monitor_refresh = gdk_monitor_get_refresh_rate(builtin) / 1000.0f;
     info->monitor_width = gdk_monitor_get_width_mm(builtin);
     info->monitor_height = gdk_monitor_get_height_mm(builtin);
@@ -765,11 +768,14 @@ load_monitor_info(GbbSystemInfo *info,
 static void gbb_system_info_init (GbbSystemInfo *info)
 {
     GdkDisplay *display;
+    gboolean ok;
 
     read_dmi_info(info);
-    load_gnome_version(&info->gnome_version,
-                       &info->gnome_distributor,
-                       &info->gnome_date);
+    ok = load_gnome_version(&info->gnome_version,
+                            &info->gnome_distributor,
+                            &info->gnome_date);
+    info->gnome_valid = ok;
+
     info->os_type = get_os_type();
     info->os_kernel = read_kernel_version();
     info->cpu_info = read_cpu_info(&info->cpu_number);
