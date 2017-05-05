@@ -811,6 +811,19 @@ gbb_system_info_acquire ()
     return info;
 }
 
+static void
+jsb_add_kv_string (JsonBuilder *builder,
+                           const char  *key,
+                           const char  *value)
+{
+    json_builder_set_member_name(builder, key);
+    if (value != NULL) {
+        json_builder_add_string_value(builder, value);
+    } else {
+        json_builder_add_string_value(builder, "Unknown");
+    }
+}
+
 void
 gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
 {
@@ -818,22 +831,17 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
     json_builder_set_member_name(builder, "hardware");
     {
         json_builder_begin_object(builder);
-        json_builder_set_member_name(builder, "vendor");
-        json_builder_add_string_value(builder, info->sys_vendor);
-        json_builder_set_member_name(builder, "version");
-        json_builder_add_string_value(builder, info->product_version);
-        json_builder_set_member_name(builder, "name");
-        json_builder_add_string_value(builder, info->product_name);
+
+        jsb_add_kv_string(builder, "vendor", info->sys_vendor);
+        jsb_add_kv_string(builder, "version", info->product_version);
+        jsb_add_kv_string(builder, "name", info->product_name);
 
         json_builder_set_member_name(builder, "bios");
         {
             json_builder_begin_object(builder);
-            json_builder_set_member_name(builder, "version");
-            json_builder_add_string_value(builder, info->bios_version);
-            json_builder_set_member_name(builder, "date");
-            json_builder_add_string_value(builder, info->bios_date);
-            json_builder_set_member_name(builder, "vendor");
-            json_builder_add_string_value(builder, info->bios_vendor);
+            jsb_add_kv_string(builder, "version", info->bios_version);
+            jsb_add_kv_string(builder, "date", info->bios_date);
+            jsb_add_kv_string(builder, "vendor", info->bios_vendor);
             json_builder_end_object(builder);
         }
 
@@ -933,8 +941,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
         json_builder_end_object(builder);
     }
 
-    json_builder_set_member_name(builder, "renderer");
-    json_builder_add_string_value(builder, info->renderer);
+    jsb_add_kv_string(builder, "renderer", info->renderer);
 
     json_builder_set_member_name(builder, "software");
     {
@@ -942,25 +949,19 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
         json_builder_set_member_name(builder, "os");
         {
             json_builder_begin_object(builder);
-            json_builder_set_member_name(builder, "type");
-            json_builder_add_string_value(builder, info->os_type);
-            json_builder_set_member_name(builder, "kernel");
-            json_builder_add_string_value(builder, info->os_kernel);
+            jsb_add_kv_string(builder, "type", info->os_type);
+            jsb_add_kv_string(builder, "kernel", info->os_kernel);
             json_builder_end_object(builder);
         }
 
-        json_builder_set_member_name(builder, "display-protocol");
-        json_builder_add_string_value(builder, info->display_proto);
+        jsb_add_kv_string(builder, "display-protocol", info->display_proto);
 
         json_builder_set_member_name(builder, "gnome");
         {
             json_builder_begin_object(builder);
-            json_builder_set_member_name(builder, "version");
-            json_builder_add_string_value(builder, info->gnome_version);
-            json_builder_set_member_name(builder, "distributor");
-            json_builder_add_string_value(builder, info->gnome_distributor);
-            json_builder_set_member_name(builder, "date");
-            json_builder_add_string_value(builder, info->gnome_date);
+            jsb_add_kv_string(builder, "version", info->gnome_version);
+            jsb_add_kv_string(builder, "distributor", info->gnome_distributor);
+            jsb_add_kv_string(builder, "date", info->gnome_date);
             json_builder_end_object(builder);
         }
         json_builder_end_object(builder);
