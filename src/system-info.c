@@ -815,12 +815,12 @@ jsb_add_kv_string (JsonBuilder *builder,
                            const char  *key,
                            const char  *value)
 {
+    if (value == NULL)
+        return;
+
     json_builder_set_member_name(builder, key);
-    if (value != NULL) {
-        json_builder_add_string_value(builder, value);
-    } else {
-        json_builder_add_string_value(builder, "Unknown");
-    }
+    json_builder_add_string_value(builder, value);
+
 }
 
 void
@@ -835,8 +835,9 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
         jsb_add_kv_string(builder, "version", info->product_version);
         jsb_add_kv_string(builder, "name", info->product_name);
 
-        json_builder_set_member_name(builder, "bios");
-        {
+        if (info->bios_version || info->bios_date || info->bios_vendor) {
+            json_builder_set_member_name(builder, "bios");
+
             json_builder_begin_object(builder);
             jsb_add_kv_string(builder, "version", info->bios_version);
             jsb_add_kv_string(builder, "date", info->bios_date);
@@ -844,8 +845,9 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_object(builder);
         }
 
-        json_builder_set_member_name(builder, "cpu");
-        {
+        if (info->cpu_number > 0) {
+            json_builder_set_member_name(builder, "cpu");
+
             json_builder_begin_object(builder);
             json_builder_set_member_name(builder, "number");
             json_builder_add_int_value(builder, info->cpu_number);
@@ -904,8 +906,10 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_array(builder);
         }
 
-        json_builder_set_member_name(builder, "monitor");
-        {
+
+        if (info->monitor_valid) {
+            json_builder_set_member_name(builder, "screen");
+
             json_builder_begin_object(builder);
 
             json_builder_set_member_name(builder, "x");
@@ -929,8 +933,9 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_object(builder);
         }
 
-        json_builder_set_member_name(builder, "memory");
-        {
+        if (info->mem_total > 0) {
+            json_builder_set_member_name(builder, "memory");
+
             json_builder_begin_object(builder);
             json_builder_set_member_name(builder, "total");
             json_builder_add_int_value(builder, info->mem_total);
@@ -945,8 +950,10 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
     json_builder_set_member_name(builder, "software");
     {
         json_builder_begin_object(builder);
-        json_builder_set_member_name(builder, "os");
-        {
+
+        if (info->os_type || info->os_kernel) {
+            json_builder_set_member_name(builder, "os");
+
             json_builder_begin_object(builder);
             jsb_add_kv_string(builder, "type", info->os_type);
             jsb_add_kv_string(builder, "kernel", info->os_kernel);
@@ -955,15 +962,16 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
 
         jsb_add_kv_string(builder, "display-protocol", info->display_proto);
 
-        json_builder_set_member_name(builder, "gnome");
-        {
+        if (info->gnome_valid) {
+            json_builder_set_member_name(builder, "gnome");
+
             json_builder_begin_object(builder);
             jsb_add_kv_string(builder, "version", info->gnome_version);
             jsb_add_kv_string(builder, "distributor", info->gnome_distributor);
             jsb_add_kv_string(builder, "date", info->gnome_date);
             json_builder_end_object(builder);
         }
-        json_builder_end_object(builder);
+        json_builder_end_object(builder); /* software */
     }
     json_builder_end_object(builder);
 }
