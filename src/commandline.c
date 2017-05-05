@@ -131,7 +131,6 @@ info_txt(int argc, char **argv)
     }
     g_print("  Batteries:\n");
     g_ptr_array_foreach(batteries, (GFunc) info_txt_battery, "  ");
-    g_print("  Renderer: %s\n", renderer);
     g_print("  Monitor:\n");
     g_print("    Resolution: %d x %d (px)\n", monitor_x, monitor_y);
     g_print("    Size: %d x %d (mm)\n", monitor_width, monitor_height);
@@ -143,6 +142,7 @@ info_txt(int argc, char **argv)
     g_print("   Version: %s\n", bios_version);
     g_print("   Date: %s\n", bios_date);
     g_print("   Vendor: %s\n", bios_vendor);
+    g_print(" Renderer: %s\n", renderer);
     g_print(" Software:\n");
     g_print("  OS:\n");
     g_print("   Type: %s\n", os_type);
