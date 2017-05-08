@@ -8,6 +8,7 @@ gbb - Command line integration client for GNOME Battery Bench
 SYNOPSIS
 --------
 [verse]
+'gbb info [--json]'
 'gbb monitor'
 'gbb play <filename>'
 'gbb play-local <filename>'
@@ -28,6 +29,17 @@ http://git.gnome.org/browse/gnome-battery-bench/plain/README[README file]
 
 COMMANDS
 --------
+
+info
+~~~~
+
+'gbb info'
+
+Display general hardware and software information. The information is not exhaustive,
+focuses on power relevant components and is meant as a means to identify different
+platforms and systems. If '--json' is specified then the output will be in the machine
+readable JSON format; here unknown components will be omitted instead of reported as
+"Unknown".
 
 monitor
 ~~~~~~~
