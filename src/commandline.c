@@ -90,6 +90,7 @@ info_txt(int argc, char **argv)
     g_autofree char *gnome_distributor;
     g_autofree char *gnome_date;
     g_autoptr(GPtrArray) batteries = NULL;
+    int i;
 
     info = gbb_system_info_acquire();
 
@@ -126,7 +127,7 @@ info_txt(int argc, char **argv)
     g_print("  Name: %s\n", product_name);
     g_print("  CPU%s:\n", cpu_number > 1 ? "s" : "");
     g_print("   Number: %u\n", cpu_number);
-    for (int i = 0; i < g_strv_length(cpu_info); i++) {
+    for (i = 0; i < g_strv_length(cpu_info); i++) {
         g_print("   Info [%d]: %s\n", i, cpu_info[i]);
     }
     g_print("  Batteries:\n");

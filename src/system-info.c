@@ -422,10 +422,15 @@ read_sysfs_string(const char *node)
                               &error);
 
     if (!ok) {
+        static const char *msg = "Reading sys file '%s' failed: %s.";
+#if GLIB_CHECK_VERSION(2, 50, 0)
         g_log_structured (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                           "MESSAGE_ID", "3a2690a163c5465bb9ba0cab229bf3cf",
-                          "MESSAGE", "Reading sys file '%s' failed: %s.",
+                          "MESSAGE", msg,
                           node, error->message);
+#else
+        g_warning(msg, node, error->message);
+#endif
         g_error_free(error);
         return NULL;
     }
@@ -473,10 +478,17 @@ read_kernel_version(void)
 static void
 report_format_error(const char *filename, const char *message)
 {
+    static const char *msg = "Format error: while parsing '%s': %s.";
+
+#if GLIB_CHECK_VERSION(2, 50, 0)
     g_log_structured (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                       "MESSAGE_ID", "3a2690a163c5465bb9ba0cab229bf3cf",
-                      "MESSAGE", "Format error: while parsing '%s': %s.",
+                      "MESSAGE", msg,
                       filename, message);
+
+#else
+    g_warning(msg, filename, message);
+#endif
 }
 
 static GStrv
@@ -696,6 +708,7 @@ get_renderer_info (void)
     return NULL;
 }
 
+#if (GDK_MAJOR_VERSION >= 3 && GDK_MINOR_VERSION >= 22)
 static gboolean
 monitor_is_builtin(const char *model)
 {
@@ -716,6 +729,7 @@ monitor_is_builtin(const char *model)
 
     return FALSE;
 }
+#endif
 
 static void
 load_monitor_info(GbbSystemInfo *info,
@@ -827,6 +841,8 @@ jsb_add_kv_string (JsonBuilder *builder,
 void
 gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
 {
+    int i;
+
     json_builder_begin_object(builder);
     json_builder_set_member_name(builder, "hardware");
     {
@@ -854,7 +870,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_add_int_value(builder, info->cpu_number);
             json_builder_set_member_name(builder, "info");
             json_builder_begin_array(builder);
-            for (int i = 0; i < g_strv_length(info->cpu_info); i++) {
+            for (i = 0; i < g_strv_length(info->cpu_info); i++) {
                 json_builder_add_string_value(builder, info->cpu_info[i]);
             }
             json_builder_end_array(builder);
@@ -864,7 +880,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
         json_builder_set_member_name(builder, "batteries");
         {
             json_builder_begin_array(builder);
-            for (int i = 0; i < info->batteries->len; i++) {
+            for (i = 0; i < info->batteries->len; i++) {
                 GbbBattery *bat = g_ptr_array_index(info->batteries, i);
                 g_autofree char *name = NULL;
                 g_autofree char *vendor = NULL;
