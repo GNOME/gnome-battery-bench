@@ -697,12 +697,8 @@ get_renderer_info (void)
 }
 
 static gboolean
-monitor_is_builtin(GdkMonitor *monitor)
+monitor_is_builtin(const char *model)
 {
-    const char *model;
-
-    model = gdk_monitor_get_model(monitor);
-
     if (model == NULL)
         return FALSE;
 
@@ -725,6 +721,7 @@ static void
 load_monitor_info(GbbSystemInfo *info,
                  GdkDisplay    *display)
 {
+#if (GDK_MAJOR_VERSION >= 3 && GDK_MINOR_VERSION >= 22)
     GdkMonitor *builtin = NULL;
     GdkRectangle geo;
     int i, n;
@@ -733,8 +730,9 @@ load_monitor_info(GbbSystemInfo *info,
 
     for (i = 0; i < n; i++) {
         GdkMonitor *moni = gdk_display_get_monitor(display, i);
+        const char *model = gdk_monitor_get_model(moni);
 
-        if (monitor_is_builtin(moni)) {
+        if (monitor_is_builtin(model)) {
             builtin = moni;
             break;
         }
@@ -763,6 +761,9 @@ load_monitor_info(GbbSystemInfo *info,
     gdk_monitor_get_geometry(builtin, &geo);
     info->monitor_x = geo.width * info->monitor_scale;
     info->monitor_y = geo.height * info->monitor_scale;
+#else /* GDK version check */
+    info->monitor_valid = FALSE;
+#endif
 }
 
 static void gbb_system_info_init (GbbSystemInfo *info)
