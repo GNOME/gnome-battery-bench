@@ -165,13 +165,14 @@ class Tests(unittest.TestCase):
         return LogReader(self.logfile.name)
 
     def add_std_platform(self):
-        self.testbed.add_device('dmi', 'virtual/dmi/id', None,
-                                ['sys_vendor', 'GNOME.org',
-                                 'product_name', 'hal',
-                                 'product_version', '9000',
-                                 'bios_vendor', 'bios.GNOME.org',
-                                 'bios_version', '9k',
-                                 'bios_date', '01/23/1997'], [])
+        dev = self.testbed.add_device('dmi', 'virtual/dmi/id', None,
+                                      ['sys_vendor', 'GNOME.org',
+                                       'product_name', 'hal',
+                                       'product_version', '9000',
+                                       'bios_vendor', 'bios.GNOME.org',
+                                       'bios_version', '9k',
+                                       'bios_date', '01/23/1997'], [])
+        return dev
 
     def add_std_power_supply(self, vendor='GNOME.org', model='B1'):
         ac = self.testbed.add_device('power_supply', 'AC', None,
@@ -211,7 +212,7 @@ class Tests(unittest.TestCase):
         vendor = 'GNOME.org'
         model = 'B1'
 
-        self.add_std_platform()
+        plt = self.add_std_platform()
         self.add_std_power_supply(vendor=vendor, model=model)
 
         log = self.gbb("info", ["--json"])
@@ -232,6 +233,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(bats[0]['name'], 'BAT0')
         self.assertEqual(bats[0]['vendor'], vendor)
         self.assertEqual(bats[0]['model'], model)
+
+        self.testbed.set_attribute(plt, 'product_version', '\n')
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+        self.assertTrue('hardware' in out)
+        hw = out['hardware']
+        self.assertNotIn('version', hw)
 
     def test_basic_monitor(self):
         ac, b0 = self.add_std_power_supply()
