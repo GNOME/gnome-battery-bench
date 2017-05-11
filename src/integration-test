@@ -192,8 +192,8 @@ class Tests(unittest.TestCase):
     def test_basic(self):
         '''Basic system information (model, bios, etc)
 
-        In the first run we ensure that we get 'Unknown' for all
-        fields that we haven't set in /sys, then we fill them for them
+        In the first run we ensure that we don't have the fields in the
+        json that we haven't set in /sys, then we fill them for them
         second run and check we get the right values
         '''
         log = self.gbb("info", ["--json"])
@@ -201,12 +201,8 @@ class Tests(unittest.TestCase):
 
         self.assertIn('hardware', out)
         hw = out['hardware']
-        for key in ['vendor', 'version', 'name']:
-            self.assertEqual(hw[key], 'Unknown')
-        self.assertIn('bios', hw)
-        bios = hw['bios']
-        for key in ['vendor', 'version', 'date']:
-            self.assertEqual(bios[key], 'Unknown')
+        for key in ['vendor', 'version', 'name', 'bios']:
+            self.assertNotIn(key, hw)
 
         self.assertIn('batteries', hw)
         self.assertEqual(len(hw['batteries']), 0)
