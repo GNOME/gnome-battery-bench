@@ -61,6 +61,8 @@ struct _GbbSystemInfo {
 
     char *display_proto;
 
+    char *desktop;
+
     /*  GNOME */
     gboolean gnome_valid;
     char *gnome_version;
@@ -98,6 +100,7 @@ enum {
     PROP_OS_KERNEL,
 
     PROP_DISPLAY_PROTO,
+    PROP_DESKTOP,
 
     PROP_GNOME_VERSION,
     PROP_GNOME_DISTRIBUTOR,
@@ -137,6 +140,7 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_free(info->os_kernel);
 
     g_free(info->display_proto);
+    g_free(info->desktop);
 
     g_free(info->gnome_version);
     g_free(info->gnome_distributor);
@@ -243,6 +247,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_DISPLAY_PROTO:
         value_set_string_or_unknown(value, info->display_proto);
+        break;
+
+    case PROP_DESKTOP:
+        value_set_string_or_unknown(value, info->desktop);
         break;
 
     case PROP_GNOME_VERSION:
@@ -381,6 +389,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
 
     props[PROP_DISPLAY_PROTO] =
         g_param_spec_string("display-proto",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE);
+
+    props[PROP_DESKTOP] =
+        g_param_spec_string("desktop-environment",
                             NULL, NULL,
                             NULL,
                             G_PARAM_READABLE);
@@ -824,6 +838,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->mem_total = read_mem_info();
     info->batteries = get_batteries();
     info->renderer = get_renderer_info();
+    info->desktop = gbb_strdup_clean(g_getenv("XDG_CURRENT_DESKTOP"));
 
     display = gdk_display_get_default ();
     if (display == NULL) {
@@ -1005,6 +1020,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
         }
 
         jsb_add_kv_string(builder, "display-protocol", info->display_proto);
+        jsb_add_kv_string(builder, "desktop-environment", info->desktop);
 
         if (info->gnome_valid) {
             json_builder_set_member_name(builder, "gnome");
