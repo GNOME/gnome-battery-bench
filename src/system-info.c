@@ -435,8 +435,14 @@ read_sysfs_string(const char *node)
         return NULL;
     }
 
-    if (len > 1 && contents[len-1] == '\n') {
-        contents[len-1] = '\0';
+    if (contents == NULL) {
+        return NULL;
+    }
+
+    contents = g_strstrip(contents);
+
+    if (*contents == '\0') {
+        g_clear_pointer(&contents, g_free);
     }
 
     return contents;
