@@ -409,6 +409,32 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
 }
 
 static char *
+gbb_str_clean(char *input)
+{
+    char *cleaned = g_strstrip(input);
+
+    if (*cleaned == '\0') {
+        g_free(cleaned);
+        cleaned = NULL;
+    }
+
+    return cleaned;
+}
+
+static char *
+gbb_strdup_clean(const char *input)
+{
+    char *cleaned;
+
+    if (input == NULL || *input == '\0') {
+        return NULL;
+    }
+
+    cleaned = g_strdup(input);
+    return gbb_str_clean(cleaned);
+}
+
+static char *
 read_sysfs_string(const char *node)
 {
     gboolean ok;
@@ -659,12 +685,7 @@ get_renderer_from_session (void)
     }
 
     renderer = g_variant_get_string(var, NULL);
-
-    if (renderer != NULL && renderer[0] != '\0') {
-        return NULL;
-    }
-
-    return g_strstrip(g_strdup(renderer));
+    return gbb_strdup_clean(renderer);
 }
 
 static char *
