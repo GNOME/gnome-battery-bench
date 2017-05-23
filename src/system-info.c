@@ -721,14 +721,13 @@ get_renderer_from_helper (void)
                       &exit_status,
                       &error);
 
-    if (!ok || !g_spawn_check_exit_status(exit_status, &error) ||
-        stdout_str == NULL || stdout_str[0] == '\0') {
+    if (!ok || !g_spawn_check_exit_status(exit_status, &error)) {
         g_warning("Failed to obtain get renderer via helper binary: %s",
                   error->message);
         return NULL;
     }
 
-    return g_strstrip(stdout_str);
+    return gbb_str_clean(stdout_str);
 }
 
 static char *
