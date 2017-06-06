@@ -44,7 +44,9 @@ client_sources =				\
 	test-runner.c				\
 	test-runner.h				\
 	xinput-wait.c				\
-	xinput-wait.h
+	xinput-wait.h				\
+	util-sysfs.h				\
+	util-sysfs.c
 
 gnome_battery_bench_CPPFLAGS =  $(AM_CPPFLAGS) $(APPLICATION_CFLAGS)
 gnome_battery_bench_LDADD = $(APPLICATION_LIBS)
