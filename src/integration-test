@@ -361,7 +361,7 @@ class Tests(unittest.TestCase):
 
         self.assertIn('Monitoring power events', log)
 
-        self.testbed.set_attribute(b0, 'energy_now', '09000000')
+        self.testbed.set_attribute(b0, 'energy_now', '9000000')
         self.assertIn('20.00 WH', log)
 
         self.testbed.set_attribute(b1, 'energy_now', '10000000')

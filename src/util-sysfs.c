@@ -34,7 +34,7 @@ sysfs_read_guint64(GUdevDevice *device, const char *name, guint64 *res)
         return FALSE;
     }
 
-    value = g_ascii_strtoull(buffer, &end, 10);
+    value = g_ascii_strtoull(buffer, &end, 0);
     if (end == buffer) {
         return FALSE;
     }
