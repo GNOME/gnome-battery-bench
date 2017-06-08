@@ -14,9 +14,299 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include "util-sysfs.h"
+
 #include "power-supply.h"
 
 #include "config.h"
+
+
+G_DEFINE_BOXED_TYPE (GbbPciClass, gbb_pci_class, gbb_pci_class_copy, gbb_pci_class_free)
+
+GbbPciClass *
+gbb_pci_class_copy(const GbbPciClass *klass)
+{
+    return g_slice_dup(GbbPciClass, klass);
+}
+
+void
+gbb_pci_class_free(GbbPciClass *klass)
+{
+    g_slice_free(GbbPciClass, klass);
+}
+
+struct _GbbPciDeviceClass
+{
+  GObjectClass parent_class;
+
+  gpointer padding[13];
+};
+
+
+typedef struct _GbbPciDevicePrivate {
+    GUdevDevice *udevice;
+
+    GbbPciClass  class_id;
+
+    guint16      vendor_id;
+    guint16      device_id;
+
+    gboolean     enabled;
+
+} GbbPciDevicePrivate;
+
+enum {
+    PROP_PCI_DEVICE_0,
+    PROP_UDEV_DEVICE,
+    PROP_CLASS,
+    PROP_VENDOR_ID,
+    PROP_VENDOR_NAME,
+    PROP_DEVICE_ID,
+    PROP_DEVICE_NAME,
+    PROP_ENABLED,
+    PROP_PCI_DEVICE_LAST
+};
+
+static GParamSpec *pcidev_props[PROP_PCI_DEVICE_LAST] = { NULL, };
+
+G_DEFINE_TYPE_WITH_PRIVATE(GbbPciDevice,
+                           gbb_pci_device,
+                           G_TYPE_OBJECT);
+
+#define PCIDEV_GET_PRIV(obj) \
+    ((GbbPciDevicePrivate *) gbb_pci_device_get_instance_private(GBB_PCI_DEVICE(obj)))
+
+static void gbb_pci_device_constructed(GObject *obj);
+
+static void
+gbb_pci_device_finalize(GObject *object)
+{
+    GbbPciDevice *dev = GBB_PCI_DEVICE(object);
+    GbbPciDevicePrivate *priv = PCIDEV_GET_PRIV(dev);
+
+    g_clear_object(&priv->udevice);
+}
+
+static void
+gbb_pci_device_get_property(GObject    *object,
+                            guint       prop_id,
+                            GValue     *value,
+                            GParamSpec *pspec)
+{
+    GbbPciDevice *dev = GBB_PCI_DEVICE(object);
+    GbbPciDevicePrivate *priv = PCIDEV_GET_PRIV(dev);
+    GUdevDevice *udevice = priv->udevice;
+    guint ui;
+    const char *str;
+
+    switch (prop_id) {
+
+    case PROP_UDEV_DEVICE:
+        g_value_set_object(value, udevice);
+        break;
+
+    case PROP_CLASS:
+        g_value_set_boxed(value, &priv->class_id);
+        break;
+
+    case PROP_VENDOR_ID:
+        ui = priv->vendor_id;
+        g_value_set_uint(value, ui);
+        break;
+
+    case PROP_VENDOR_NAME:
+        str = g_udev_device_get_property (udevice, "ID_VENDOR_FROM_DATABASE");
+        g_value_set_string(value, str);
+        break;
+
+    case PROP_DEVICE_ID:
+        ui = priv->device_id;
+        g_value_set_uint(value, ui);
+        break;
+
+    case PROP_DEVICE_NAME:
+        str = g_udev_device_get_property (udevice, "ID_MODEL_FROM_DATABASE");
+        g_value_set_string(value, str);
+        break;
+
+    case PROP_ENABLED:
+        g_value_set_boolean(value, priv->enabled);
+        break;
+    }
+}
+
+static void
+gbb_pci_device_set_property(GObject     *object,
+                            guint        prop_id,
+                            const GValue *value,
+                            GParamSpec   *pspec)
+{
+    GbbPciDevice *dev = GBB_PCI_DEVICE(object);
+    GbbPciDevicePrivate *priv = PCIDEV_GET_PRIV(dev);
+
+    switch (prop_id) {
+    case PROP_UDEV_DEVICE:
+        priv->udevice = g_value_dup_object(value);
+        break;
+    }
+
+}
+
+static void
+gbb_pci_device_class_init(GbbPciDeviceClass *klass)
+{
+    GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+
+    gobject_class->finalize     = gbb_pci_device_finalize;
+    gobject_class->get_property = gbb_pci_device_get_property;
+    gobject_class->set_property = gbb_pci_device_set_property;
+    gobject_class->constructed  = gbb_pci_device_constructed;
+
+    pcidev_props[PROP_UDEV_DEVICE] =
+        g_param_spec_object("udev-device",
+                            NULL, NULL,
+                            G_UDEV_TYPE_DEVICE,
+                            G_PARAM_READWRITE |
+                            G_PARAM_CONSTRUCT_ONLY |
+                            G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_CLASS] =
+        g_param_spec_boxed("class",
+                           NULL, NULL,
+                           GBB_TYPE_PCI_CLASS,
+                           G_PARAM_READABLE |
+                           G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_VENDOR_ID] =
+        g_param_spec_uint("vendor",
+                          NULL, NULL,
+                          0, G_MAXUINT16, 0,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_VENDOR_NAME] =
+        g_param_spec_string("vendor-name",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_DEVICE_ID] =
+        g_param_spec_uint("device",
+                          NULL, NULL,
+                          0, G_MAXUINT16, 0,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_DEVICE_NAME] =
+        g_param_spec_string("device-name",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+    pcidev_props[PROP_ENABLED] =
+        g_param_spec_boolean("enabled",
+                             NULL, NULL,
+                             FALSE,
+                             G_PARAM_READABLE |
+                             G_PARAM_STATIC_NAME);
+
+    g_object_class_install_properties(gobject_class,
+                                      PROP_PCI_DEVICE_LAST,
+                                      pcidev_props);
+}
+
+static gboolean
+pci_class_from_udev_device(GUdevDevice *device, GbbPciClass *class_id)
+{
+    guint64 cls = 0;
+    gboolean ok;
+
+    ok = sysfs_read_guint64(device, "class", &cls);
+
+    class_id->code   = cls >> (2*8) & 0xFF;
+    class_id->sub    = cls >> 8 & 0xFF;
+    class_id->progif = cls & 0xFF;
+
+    return ok;
+}
+
+static void
+gbb_pci_device_constructed(GObject *obj)
+{
+    GbbPciDevice *dev = GBB_PCI_DEVICE(obj);
+    GbbPciDevicePrivate *priv = PCIDEV_GET_PRIV(dev);
+    GUdevDevice *udevice = priv->udevice;
+    guint64 val;
+    gboolean ok;
+
+    pci_class_from_udev_device(priv->udevice, &priv->class_id);
+
+    ok = sysfs_read_guint64(udevice, "vendor", &val);
+    if (ok) {
+        priv->vendor_id = (guint16) val;
+    }
+
+    ok = sysfs_read_guint64(udevice, "device", &val);
+    if (ok) {
+        priv->device_id = (guint16) val;
+    }
+
+    ok = sysfs_read_guint64(udevice, "enable", &val);
+    if (ok) {
+        priv->enabled = val != 0;
+    }
+}
+
+static void
+gbb_pci_device_init(GbbPciDevice *dev)
+{
+
+}
+
+static GPtrArray *
+gbb_pci_device_discover(GUdevClient *client, int code, int sub, int progif)
+{
+    GPtrArray *devices = NULL;
+    GList *udevices;
+
+    if (client == NULL) {
+        client = g_udev_client_new(NULL);
+    } else {
+        client = g_object_ref(client);
+    }
+
+    udevices = g_udev_client_query_by_subsystem (client, "pci");
+
+    devices = g_ptr_array_new_with_free_func(g_object_unref);
+
+    for (GList *l = udevices; l; l = l->next) {
+        GUdevDevice *udev_device = l->data;
+        GbbPciDevice *dev;
+        GbbPciClass cid;
+        gboolean ok;
+
+        ok = pci_class_from_udev_device(udev_device, &cid);
+
+        if (!ok || ((code >= 0 && code != cid.code) ||
+                    (sub >= 0 && sub != cid.sub) ||
+                    (progif >= 0 && progif != cid.progif))) {
+            continue;
+        }
+
+        dev = g_object_new(GBB_TYPE_PCI_DEVICE,
+                           "udev-device", udev_device,
+                           NULL);
+
+        g_ptr_array_add(devices, dev);
+    }
+
+    g_list_free_full(udevices, (GDestroyNotify) g_object_unref);
+    g_object_unref(client);
+
+    return devices;
+}
 
 struct _GbbSystemInfo {
     GObject parent;
@@ -40,6 +330,9 @@ struct _GbbSystemInfo {
 
     /*  Batteries  */
     GPtrArray *batteries;
+
+    /* GPUs */
+    GPtrArray *gpus;
 
     /* GPU/Renderer */
     char *renderer;
@@ -86,6 +379,8 @@ enum {
     PROP_MEM_TOTAL,
 
     PROP_BATTERIES,
+
+    PROP_GPUS,
 
     PROP_MONITOR_X,
     PROP_MONITOR_Y,
@@ -135,6 +430,8 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_strfreev(info->cpu_info);
 
     g_ptr_array_unref(info->batteries);
+
+    g_ptr_array_unref(info->gpus);
 
     g_free(info->os_type);
     g_free(info->os_kernel);
@@ -207,6 +504,10 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
 
     case PROP_BATTERIES:
         g_value_set_boxed(value, info->batteries);
+        break;
+
+    case PROP_GPUS:
+        g_value_set_boxed(value, info->gpus);
         break;
 
     case PROP_MONITOR_X:
@@ -330,6 +631,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
 
     props[PROP_BATTERIES] =
         g_param_spec_boxed("batteries",
+                           NULL, NULL,
+                           G_TYPE_PTR_ARRAY,
+                           G_PARAM_READABLE);
+
+    props[PROP_GPUS] =
+        g_param_spec_boxed("gpus",
                            NULL, NULL,
                            G_TYPE_PTR_ARRAY,
                            G_PARAM_READABLE);
@@ -847,6 +1154,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
     info->cpu_info = read_cpu_info(&info->cpu_number);
     info->mem_total = read_mem_info();
     info->batteries = get_batteries();
+    info->gpus = gbb_pci_device_discover(NULL, 3, -1, -1);
     info->renderer = get_renderer_info();
     info->desktop = gbb_strdup_clean(g_getenv("XDG_CURRENT_DESKTOP"));
 
@@ -1009,6 +1317,39 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_set_member_name(builder, "total");
             json_builder_add_int_value(builder, info->mem_total);
             json_builder_end_object(builder);
+        }
+
+        json_builder_set_member_name(builder, "gpus");
+        {
+            json_builder_begin_array(builder);
+            for (i = 0; i < info->gpus->len; i++) {
+                GbbPciDevice *gpu = g_ptr_array_index(info->gpus, i);
+                g_autofree char *vendor_name = NULL;
+                g_autofree char *device_name = NULL;
+                guint            vendor_id;
+                guint            device_id;
+                gboolean         enabled;
+
+                g_object_get(gpu,
+                             "vendor", &vendor_id,
+                             "vendor-name", &vendor_name,
+                             "device", &device_id,
+                             "device-name", &device_name,
+                             "enabled", &enabled,
+                             NULL);
+
+                json_builder_begin_object(builder);
+                json_builder_set_member_name(builder, "vendor");
+                json_builder_add_int_value(builder, vendor_id);
+                json_builder_set_member_name(builder, "device");
+                json_builder_add_int_value(builder, device_id);
+                jsb_add_kv_string(builder, "vendor-name", vendor_name);
+                jsb_add_kv_string(builder, "device-name", device_name);
+                json_builder_set_member_name(builder, "enabled");
+                json_builder_add_boolean_value(builder, enabled);
+                json_builder_end_object(builder);
+            }
+            json_builder_end_array(builder);
         }
 
         json_builder_end_object(builder);
