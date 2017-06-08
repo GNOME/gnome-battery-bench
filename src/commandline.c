@@ -63,6 +63,29 @@ info_txt_battery(GbbBattery *bat, const char *prefix)
     g_print("%s   Energy Full Design: %5.2f Wh\n", prefix, energy_full_design);
 }
 
+static void
+info_txt_pci_device(GbbPciDevice *dev, const char *prefix)
+{
+    g_autofree char *vendor_name = NULL;
+    g_autofree char *device_name = NULL;
+    guint            vendor_id;
+    guint            device_id;
+
+    g_object_get(dev,
+                 "vendor", &vendor_id,
+                 "vendor-name", &vendor_name,
+                 "device", &device_id,
+                 "device-name", &device_name,
+                 NULL);
+
+    g_print("%s %s [0x%x] (%s [0x%x])\n",
+            prefix,
+            device_name != NULL ? device_name : "Unknown",
+            device_id,
+            vendor_name != NULL ? vendor_name : "Unknown",
+            vendor_id);
+}
+
 static int
 info_txt(int argc, char **argv)
 {
@@ -90,6 +113,8 @@ info_txt(int argc, char **argv)
     g_autofree char *gnome_distributor;
     g_autofree char *gnome_date;
     g_autoptr(GPtrArray) batteries = NULL;
+    g_autoptr(GPtrArray) gpus = NULL;
+
     int i;
 
     info = gbb_system_info_acquire();
@@ -105,6 +130,7 @@ info_txt(int argc, char **argv)
                  "cpu-info", &cpu_info,
                  "mem-total", &mem_total,
                  "batteries", &batteries,
+                 "gpus", &gpus,
                  "renderer", &renderer,
                  "monitor-x", &monitor_x,
                  "monitor-y", &monitor_y,
@@ -130,6 +156,8 @@ info_txt(int argc, char **argv)
     for (i = 0; i < g_strv_length(cpu_info); i++) {
         g_print("   Info [%d]: %s\n", i, cpu_info[i]);
     }
+    g_print("  GPUs:\n");
+    g_ptr_array_foreach(gpus, (GFunc) info_txt_pci_device, "   ");
     g_print("  Batteries:\n");
     g_ptr_array_foreach(batteries, (GFunc) info_txt_battery, "  ");
     g_print("  Monitor:\n");
