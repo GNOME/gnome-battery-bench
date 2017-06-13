@@ -71,6 +71,7 @@ info_txt_pci_device(GbbPciDevice *dev, const char *prefix)
     guint            vendor_id;
     guint            device_id;
     guint            revision;
+    gboolean         enabled;
 
     g_object_get(dev,
                  "vendor", &vendor_id,
@@ -78,15 +79,17 @@ info_txt_pci_device(GbbPciDevice *dev, const char *prefix)
                  "device", &device_id,
                  "device-name", &device_name,
                  "revision", &revision,
+                 "enabled", &enabled,
                  NULL);
 
-    g_print("%s %s [0x%x] (%s [0x%x]) rev. 0x%x\n",
+    g_print("%s %s [0x%x] (%s [0x%x]) rev. 0x%x%s\n",
             prefix,
             device_name != NULL ? device_name : "Unknown",
             device_id,
             vendor_name != NULL ? vendor_name : "Unknown",
             vendor_id,
-            revision);
+            revision,
+            enabled ? "" : " [disabled]");
 }
 
 static int
