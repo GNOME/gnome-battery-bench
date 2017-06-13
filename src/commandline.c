@@ -70,20 +70,23 @@ info_txt_pci_device(GbbPciDevice *dev, const char *prefix)
     g_autofree char *device_name = NULL;
     guint            vendor_id;
     guint            device_id;
+    guint            revision;
 
     g_object_get(dev,
                  "vendor", &vendor_id,
                  "vendor-name", &vendor_name,
                  "device", &device_id,
                  "device-name", &device_name,
+                 "revision", &revision,
                  NULL);
 
-    g_print("%s %s [0x%x] (%s [0x%x])\n",
+    g_print("%s %s [0x%x] (%s [0x%x]) rev. 0x%x\n",
             prefix,
             device_name != NULL ? device_name : "Unknown",
             device_id,
             vendor_name != NULL ? vendor_name : "Unknown",
-            vendor_id);
+            vendor_id,
+            revision);
 }
 
 static int
