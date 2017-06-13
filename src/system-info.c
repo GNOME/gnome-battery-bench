@@ -53,6 +53,8 @@ typedef struct _GbbPciDevicePrivate {
 
     gboolean     enabled;
 
+    guint        revision;
+
 } GbbPciDevicePrivate;
 
 enum {
@@ -64,6 +66,7 @@ enum {
     PROP_DEVICE_ID,
     PROP_DEVICE_NAME,
     PROP_ENABLED,
+    PROP_REVISION,
     PROP_PCI_DEVICE_LAST
 };
 
@@ -131,6 +134,10 @@ gbb_pci_device_get_property(GObject    *object,
 
     case PROP_ENABLED:
         g_value_set_boolean(value, priv->enabled);
+        break;
+
+    case PROP_REVISION:
+        g_value_set_uint(value, priv->revision);
         break;
     }
 }
@@ -212,6 +219,12 @@ gbb_pci_device_class_init(GbbPciDeviceClass *klass)
                              G_PARAM_READABLE |
                              G_PARAM_STATIC_NAME);
 
+    pcidev_props[PROP_REVISION] =
+        g_param_spec_uint("revision",
+                          NULL, NULL,
+                          0, G_MAXUINT8, 0,
+                          G_PARAM_READABLE | G_PARAM_STATIC_NAME);
+
     g_object_class_install_properties(gobject_class,
                                       PROP_PCI_DEVICE_LAST,
                                       pcidev_props);
@@ -256,6 +269,11 @@ gbb_pci_device_constructed(GObject *obj)
     ok = sysfs_read_guint64(udevice, "enable", &val);
     if (ok) {
         priv->enabled = val != 0;
+    }
+
+    ok = sysfs_read_guint64(udevice, "revision", &val);
+    if (ok) {
+        priv->revision = (guint) val;
     }
 }
 
@@ -1329,6 +1347,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                 guint            vendor_id;
                 guint            device_id;
                 gboolean         enabled;
+                guint            revision;
 
                 g_object_get(gpu,
                              "vendor", &vendor_id,
@@ -1336,6 +1355,7 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                              "device", &device_id,
                              "device-name", &device_name,
                              "enabled", &enabled,
+                             "revision", &revision,
                              NULL);
 
                 json_builder_begin_object(builder);
@@ -1345,6 +1365,8 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
                 json_builder_add_int_value(builder, device_id);
                 jsb_add_kv_string(builder, "vendor-name", vendor_name);
                 jsb_add_kv_string(builder, "device-name", device_name);
+                json_builder_set_member_name(builder, "revision");
+                json_builder_add_int_value(builder, revision);
                 json_builder_set_member_name(builder, "enabled");
                 json_builder_add_boolean_value(builder, enabled);
                 json_builder_end_object(builder);
