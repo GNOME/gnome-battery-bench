@@ -815,6 +815,17 @@ load_monitor_info(GbbSystemInfo *info,
     gdk_monitor_get_geometry(builtin, &geo);
     info->monitor_x = geo.width * info->monitor_scale;
     info->monitor_y = geo.height * info->monitor_scale;
+
+    /* Workaround for a gtk bug where on wayland the reported geo
+     * is actually device pixels (bgo 783995).
+     */
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY(display)) {
+        info->monitor_x /= info->monitor_scale;
+        info->monitor_y /= info->monitor_scale;
+    }
+#endif
+
 #else /* GDK version check */
     info->monitor_valid = FALSE;
 #endif
