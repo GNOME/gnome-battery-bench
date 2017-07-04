@@ -373,6 +373,35 @@ class Tests(unittest.TestCase):
         log.close()
         self.gbb_stop()
 
+    def test_pci_gpus(self):
+        self.add_std_platform()
+        self.add_std_power_supply(vendor="GNOME", model="ng")
+        self.testbed.add_device('pci',
+                                'pci0000:00/0000:00:02.0', None,
+                                ['class', '0x030000',
+                                 'vendor', '0x8086',
+                                 'device', '0x1916',
+                                 'enable', '1',
+                                 'revision', '0x07'],
+                                ['ID_MODEL_FROM_DATABASE', 'HD Graphics 520',
+                                 'ID_VENDOR_FROM_DATABASE', 'Intel Corporation'])
+
+        os.system('find ' + self.testbed.get_root_dir())
+        log = self.gbb("info", ["--json"])
+        out = json.loads(log)
+        self.assertIn('hardware', out)
+        hw = out['hardware']
+        self.assertIn('gpus', hw)
+        gpus = hw['gpus']
+
+        self.assertEqual(len(gpus), 1)
+        gpu = gpus[0]
+        self.assertEqual(gpu['vendor'], 32902)
+        self.assertEqual(gpu['device'], 6422)
+        self.assertEqual(gpu['revision'], 7)
+        self.assertEqual(gpu['enabled'], True)
+
+
 
 if __name__ == '__main__':
     if 'umockdev' not in os.environ.get('LD_PRELOAD', ''):
