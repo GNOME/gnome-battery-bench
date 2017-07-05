@@ -92,6 +92,42 @@ info_txt_pci_device(GbbPciDevice *dev, const char *prefix)
             enabled ? "" : " [disabled]");
 }
 
+static void
+info_txt_cpu(GbbCpu *cpu, const char *prefix)
+{
+    g_autofree char *model_name = NULL;
+    g_autofree char *arch = NULL;
+    g_autofree char *vendor = NULL;
+    g_autofree char *vendor_name = NULL;
+    guint number, threads, cores, packages;
+
+    g_print("%sCPU:\n", prefix);
+
+    if (cpu == NULL) {
+        g_print("%s Unknown\n", prefix);
+        return;
+    }
+
+    g_object_get(cpu,
+                 "model-name", &model_name,
+                 "architecture", &arch,
+                 "vendor", &vendor,
+                 "vendor-name", &vendor_name,
+                 "number", &number,
+                 "threads", &threads,
+                 "cores", &cores,
+                 "packages", &packages,
+                 NULL);
+
+
+    g_print("%s  Model: %s\n", prefix, model_name);
+    g_print("%s  Vendor: %s (%s)\n", prefix, vendor_name, vendor);
+    g_print("%s  Number: %u\n", prefix, number);
+    g_print("%s   Packages: %u\n", prefix, packages);
+    g_print("%s   Cores per Package: %u\n", prefix, cores);
+    g_print("%s   Threads per Core: %u\n", prefix, threads);
+}
+
 static int
 info_txt(int argc, char **argv)
 {
@@ -102,8 +138,7 @@ info_txt(int argc, char **argv)
     g_autofree char *bios_vendor;
     g_autofree char *bios_version;
     g_autofree char *bios_date;
-    g_auto(GStrv)    cpu_info;
-    guint            cpu_number;
+    g_autoptr(GbbCpu) cpu = NULL;
     guint64          mem_total;
     g_autofree char *renderer;
     int monitor_x;
@@ -121,8 +156,6 @@ info_txt(int argc, char **argv)
     g_autoptr(GPtrArray) batteries = NULL;
     g_autoptr(GPtrArray) gpus = NULL;
 
-    int i;
-
     info = gbb_system_info_acquire();
 
     g_object_get(info,
@@ -132,8 +165,7 @@ info_txt(int argc, char **argv)
                  "bios-date", &bios_date,
                  "bios-version", &bios_version,
                  "bios_vendor", &bios_vendor,
-                 "cpu-number", &cpu_number,
-                 "cpu-info", &cpu_info,
+                 "cpu", &cpu,
                  "mem-total", &mem_total,
                  "batteries", &batteries,
                  "gpus", &gpus,
@@ -157,11 +189,7 @@ info_txt(int argc, char **argv)
     g_print("  Vendor: %s\n", sys_vendor);
     g_print("  Version: %s\n", product_version);
     g_print("  Name: %s\n", product_name);
-    g_print("  CPU%s:\n", cpu_number > 1 ? "s" : "");
-    g_print("   Number: %u\n", cpu_number);
-    for (i = 0; i < g_strv_length(cpu_info); i++) {
-        g_print("   Info [%d]: %s\n", i, cpu_info[i]);
-    }
+    info_txt_cpu(cpu, "  ");
     g_print("  GPUs:\n");
     g_ptr_array_foreach(gpus, (GFunc) info_txt_pci_device, "   ");
     g_print("  Batteries:\n");
