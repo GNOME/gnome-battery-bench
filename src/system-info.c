@@ -13,12 +13,16 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#include <sys/utsname.h>
 
 #include "util-sysfs.h"
-
 #include "power-supply.h"
 
 #include "config.h"
+
+
+static void value_set_string_or_unknown(GValue *value, const char *str);
+static char *gbb_strdup_clean(const char *input);
 
 
 G_DEFINE_BOXED_TYPE (GbbPciClass, gbb_pci_class, gbb_pci_class_copy, gbb_pci_class_free)
@@ -326,6 +330,361 @@ gbb_pci_device_discover(GUdevClient *client, int code, int sub, int progif)
     return devices;
 }
 
+/* *************************************************************************** */
+
+struct _GbbCpuClass
+{
+  GObjectClass parent_class;
+
+  gpointer padding[13];
+};
+
+
+typedef struct _GbbCpu {
+    GObject parent;
+
+    char *model_name;
+    char *architecture;
+
+    char *model;
+
+    char *vendor_id;
+    char *vendor_name;
+
+    guint number;
+    guint threads;
+    guint cores;
+    guint packages;
+
+} GbbCpu;
+
+enum {
+    PROP_CPU_0,
+    PROP_CPU_MODEL_NAME,
+    PROP_CPU_ARCHITECTURE,
+
+    PROP_CPU_VENDOR_ID,
+    PROP_CPU_VENDOR_NAME,
+
+    PROP_CPU_NUMBER,
+    PROP_CPU_THREADS,
+    PROP_CPU_CORES,
+    PROP_CPU_PACKAGES,
+
+    PROP_CPU_LAST
+};
+
+static GParamSpec *cpu_props[PROP_CPU_LAST] = { NULL, };
+
+G_DEFINE_TYPE(GbbCpu,
+              gbb_cpu,
+              G_TYPE_OBJECT);
+
+static void
+gbb_cpu_finalize(GObject *object)
+{
+    GbbCpu *cpu = GBB_CPU(object);
+
+    g_free(cpu->model_name);
+    g_free(cpu->architecture);
+
+    g_free(cpu->model);
+
+    g_free(cpu->vendor_id);
+    g_free(cpu->vendor_name);
+}
+
+
+static void
+gbb_cpu_get_property(GObject    *object,
+                     guint       prop_id,
+                     GValue     *value,
+                     GParamSpec *pspec)
+{
+    GbbCpu *cpu = GBB_CPU(object);
+
+    switch (prop_id) {
+    case PROP_CPU_MODEL_NAME:
+        value_set_string_or_unknown(value, cpu->model_name);
+        break;
+
+    case PROP_CPU_ARCHITECTURE:
+        value_set_string_or_unknown(value, cpu->architecture);
+        break;
+
+    case PROP_CPU_VENDOR_ID:
+        value_set_string_or_unknown(value, cpu->vendor_id);
+        break;
+
+    case PROP_CPU_VENDOR_NAME:
+        if (!cpu->vendor_name) {
+            value_set_string_or_unknown(value, cpu->vendor_id);
+        } else {
+            g_value_set_string(value, cpu->vendor_name);
+        }
+        break;
+
+    case PROP_CPU_NUMBER:
+        g_value_set_uint(value, cpu->number);
+        break;
+
+    case PROP_CPU_THREADS:
+        g_value_set_uint(value, cpu->threads);
+        break;
+
+    case PROP_CPU_CORES:
+        g_value_set_uint(value, cpu->cores);
+        break;
+
+    case PROP_CPU_PACKAGES:
+        g_value_set_uint(value, cpu->packages);
+        break;
+    }
+}
+
+
+static void
+gbb_cpu_class_init(GbbCpuClass *klass)
+{
+    GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+
+    gobject_class->finalize     = gbb_cpu_finalize;
+    gobject_class->get_property = gbb_cpu_get_property;
+
+    cpu_props[PROP_CPU_MODEL_NAME] =
+        g_param_spec_string("model-name",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_ARCHITECTURE] =
+        g_param_spec_string("architecture",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+
+    cpu_props[PROP_CPU_VENDOR_ID] =
+        g_param_spec_string("vendor",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_VENDOR_NAME] =
+        g_param_spec_string("vendor-name",
+                            NULL, NULL,
+                            NULL,
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_NUMBER] =
+        g_param_spec_uint("number",
+                          NULL, NULL,
+                          0, G_MAXUINT, 1,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_THREADS] =
+        g_param_spec_uint("threads",
+                          NULL, NULL,
+                          0, G_MAXUINT, 1,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_CORES] =
+        g_param_spec_uint("cores",
+                          NULL, NULL,
+                          0, G_MAXUINT, 1,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    cpu_props[PROP_CPU_PACKAGES] =
+        g_param_spec_uint("packages",
+                          NULL, NULL,
+                          0, G_MAXUINT, 1,
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_NAME);
+
+    g_object_class_install_properties(gobject_class,
+                                      PROP_CPU_LAST,
+                                      cpu_props);
+}
+
+
+static gsize
+_cpu_block_handle(GHashTable *values, GStrv kv, gsize *mark)
+{
+    gsize i;
+
+    for (i = *mark; i < g_strv_length(kv); i++) {
+        char *entry = kv[i];
+        char *pos;
+
+        entry = g_strchomp(entry);
+        if (strlen(entry) == 0) {
+            return i;
+        }
+
+        pos = g_strstr_len(entry, -1, ":");
+        if (pos == NULL) {
+            g_warning("cpu block: unexpected k, v pair [%s]\n", entry);
+            continue;
+        }
+        *pos = '\0';
+        pos++;
+
+        while (*pos == ' ' && *pos != '\n') {
+            pos++;
+        }
+
+        entry = g_strchomp(entry);
+        g_hash_table_insert(values, (void *) entry, (void *) pos);
+    }
+
+    return i;
+}
+
+static gboolean
+fill_field_string(GHashTable *kv,
+                  const char *key,
+                  char **field)
+{
+    const char *value = g_hash_table_lookup(kv, key);
+
+    if (value == NULL) {
+        return FALSE;
+    }
+
+    *field = gbb_strdup_clean(value);
+    return TRUE;
+}
+
+static gboolean
+fill_value_uint(GHashTable *kv,
+                const char *key,
+                guint *field)
+{
+    const char *value = g_hash_table_lookup(kv, key);
+    char *end = NULL;
+    guint64 ival;
+
+    if (value == NULL) {
+        return FALSE;
+    }
+
+    ival = g_ascii_strtoull(value, &end, 10);
+    if (end == value || ival > G_MAXUINT) {
+        return FALSE;
+    }
+
+    *field = (guint) ival;
+    return TRUE;
+}
+
+static GbbCpu *
+cpus_fill_data(GbbCpu *cpu, GHashTable *kv)
+{
+    struct utsname un_info;
+    int un_res;
+
+    /* fill in the basic data */
+    un_res = uname(&un_info);
+
+    if (un_res != -1) {
+        cpu->architecture = gbb_strdup_clean(un_info.machine);
+    }
+
+    fill_field_string(kv, "model name", &cpu->model_name);
+    fill_field_string(kv, "model", &cpu->model);
+    fill_field_string(kv, "vendor_id", &cpu->vendor_id);
+
+    return cpu;
+}
+
+static gboolean
+cpu_load_info(GbbCpu *cpu, GError **error)
+{
+    g_autofree char *data;
+    g_autoptr(GHashTable) values = NULL;
+    g_auto(GStrv) kv = NULL;
+    gsize i;
+    gboolean ok;
+
+    ok = g_file_get_contents("/proc/cpuinfo", &data, NULL, error);
+
+    if (!ok) {
+        return FALSE;
+    }
+
+    kv = g_strsplit(data, "\n", -1);
+    values = g_hash_table_new(g_str_hash, g_str_equal);
+
+    for (i = 0; i < g_strv_length(kv); i++) {
+        GbbCpu *cur;
+        guint num;
+
+        g_hash_table_remove_all(values);
+        gsize p = _cpu_block_handle(values, kv, &i);
+        if (p == i)
+            break;
+        i = p;
+
+        cur = cpus_fill_data(cpu, values);
+
+        if (fill_value_uint(values, "processor", &num)) {
+            cur->number = num + 1;
+        }
+
+        if (fill_value_uint(values, "cpu cores", &num)) {
+            cur->cores = num;
+        } else if (fill_value_uint(values, "core id", &num)) {
+            cur->cores = num + 1;
+        }
+
+        if (fill_value_uint(values, "physical id", &num)) {
+            cur->packages = num + 1;
+        }
+    }
+
+    cpu->threads = cpu->number / (cpu->cores * cpu->packages);
+
+    if (cpu->vendor_id) {
+        const char *v = cpu->vendor_id;
+        if (g_str_equal(v, "GenuineIntel")) {
+            cpu->vendor_name = g_strdup("Intel");
+        } else if (g_str_equal(v, "AMDisbetter!") ||
+                   g_str_equal(v, "AuthenticAMD")) {
+            cpu->vendor_name = g_strdup("AMD");
+        }
+    }
+
+    return TRUE;
+}
+
+static void
+gbb_cpu_init(GbbCpu *cpu)
+{
+}
+
+static GbbCpu *
+gbb_cpu_discover(GError **error)
+{
+    GbbCpu *cpu = g_object_new(GBB_TYPE_CPU, NULL);
+    gboolean ok = cpu_load_info(cpu, error);
+
+    if (!ok) {
+        g_object_unref(cpu);
+        return NULL;
+    }
+
+    return cpu;
+}
+
+/* *************************************************************************** */
+
 struct _GbbSystemInfo {
     GObject parent;
 
@@ -341,8 +700,7 @@ struct _GbbSystemInfo {
     char *bios_vendor;
 
     /*  CPU*/
-    guint cpu_number;
-    GStrv cpu_info;
+    GbbCpu *cpu;
 
     guint64 mem_total;
 
@@ -392,8 +750,7 @@ enum {
     PROP_BIOS_VENDOR,
     PROP_BIOS_DATE,
 
-    PROP_CPU_NUMBER,
-    PROP_CPU_INFO,
+    PROP_CPU,
     PROP_MEM_TOTAL,
 
     PROP_BATTERIES,
@@ -445,7 +802,7 @@ gbb_system_info_finalize(GbbSystemInfo *info)
     g_free(info->bios_date);
     g_free(info->bios_vendor);
 
-    g_strfreev(info->cpu_info);
+    g_object_unref(info->cpu);
 
     g_ptr_array_unref(info->batteries);
 
@@ -508,12 +865,8 @@ gbb_system_info_get_property (GObject *object, guint prop_id, GValue *value, GPa
         value_set_string_or_unknown(value, info->bios_vendor);
         break;
 
-    case PROP_CPU_NUMBER:
-        g_value_set_uint(value, info->cpu_number);
-        break;
-
-    case PROP_CPU_INFO:
-        g_value_set_boxed(value, info->cpu_info);
+    case PROP_CPU:
+        g_value_set_object(value, info->cpu);
         break;
 
     case PROP_MEM_TOTAL:
@@ -629,18 +982,12 @@ gbb_system_info_class_init (GbbSystemInfoClass *klass)
                             NULL, NULL,
                             NULL,
                             G_PARAM_READABLE);
+    props[PROP_CPU] =
+        g_param_spec_object("cpu",
+                            NULL, NULL,
+                            GBB_TYPE_CPU,
+                            G_PARAM_READABLE);
 
-    props[PROP_CPU_NUMBER] =
-        g_param_spec_uint("cpu-number",
-                          NULL, NULL,
-                          0, G_MAXUINT, 0,
-                          G_PARAM_READABLE);
-
-    props[PROP_CPU_INFO] =
-        g_param_spec_boxed("cpu-info",
-                           NULL, NULL,
-                           G_TYPE_STRV,
-                           G_PARAM_READABLE);
     props[PROP_MEM_TOTAL] =
         g_param_spec_uint64("mem-total",
                             NULL, NULL,
@@ -860,65 +1207,6 @@ report_format_error(const char *filename, const char *message)
 #else
     g_warning(msg, filename, message);
 #endif
-}
-
-static GStrv
-read_cpu_info(guint *ncpus)
-{
-    g_autofree char *data = read_sysfs_string("/proc/cpuinfo");
-    g_autoptr(GHashTable) cpus = NULL;
-    g_auto(GStrv) kv = NULL;
-    GStrv models = NULL;
-    gsize i, n = 0;
-    gpointer key, val;
-    GHashTableIter iter;
-
-    if (data == NULL) {
-        return NULL;
-    }
-
-    cpus = g_hash_table_new (g_str_hash, g_str_equal);
-
-    kv = g_strsplit(data, "\n", -1);
-    for (i = 0; i < g_strv_length(kv); i++) {
-        const char *entry = kv[i];
-        const char *pos;
-        if (!g_str_has_prefix(entry, "model name")) {
-            continue;
-        }
-
-        pos = g_strstr_len(entry, -1, ":");
-        if (pos == NULL) {
-            report_format_error("/proc/cpuinfo", "expected a ':'");
-            continue;
-        }
-        pos++;
-
-        while (*pos == ' ' && *pos != '\n') {
-            pos++;
-        }
-
-        val = g_hash_table_lookup(cpus, pos);
-        if (val == NULL) {
-            g_hash_table_insert(cpus, (gpointer) pos, GINT_TO_POINTER(1));
-        } else {
-            val = GINT_TO_POINTER(GPOINTER_TO_INT(val) + 1);
-            g_hash_table_replace(cpus, (gpointer) pos, val);
-        }
-    }
-
-    n = i = 0;
-    g_hash_table_iter_init (&iter, cpus);
-    models = (GStrv) g_new(char *, g_hash_table_size(cpus) + 1);
-    while (g_hash_table_iter_next (&iter, &key, &val)) {
-        int k = GPOINTER_TO_INT(val);
-        models[i] = g_strdup_printf("%s [%d]", (char *) key, k);
-        n += k;
-        i++;
-    }
-    models[i] = NULL;
-    *ncpus = n;
-    return models;
 }
 
 static guint64
@@ -1169,7 +1457,7 @@ static void gbb_system_info_init (GbbSystemInfo *info)
 
     info->os_type = get_os_type();
     info->os_kernel = read_kernel_version();
-    info->cpu_info = read_cpu_info(&info->cpu_number);
+    info->cpu = gbb_cpu_discover(NULL);
     info->mem_total = read_mem_info();
     info->batteries = get_batteries();
     info->gpus = gbb_pci_device_discover(NULL, 3, -1, -1);
@@ -1240,18 +1528,47 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             json_builder_end_object(builder);
         }
 
-        if (info->cpu_number > 0) {
-            json_builder_set_member_name(builder, "cpu");
+        if (info->cpu > 0) {
+            g_autofree char *model_name = NULL;
+            g_autofree char *arch = NULL;
+            g_autofree char *vendor = NULL;
+            g_autofree char *vendor_name = NULL;
+            guint number, threads, cores, packages;
 
+            g_object_get(info->cpu,
+                         "model-name", &model_name,
+                         "architecture", &arch,
+                         "vendor", &vendor,
+                         "vendor-name", &vendor_name,
+                         "number", &number,
+                         "threads", &threads,
+                         "cores", &cores,
+                         "packages", &packages,
+                         NULL);
+
+
+            json_builder_set_member_name(builder, "cpu");
             json_builder_begin_object(builder);
+
+            jsb_add_kv_string(builder, "model-name", model_name);
+
+            jsb_add_kv_string(builder, "vendor-name", vendor_name);
+            jsb_add_kv_string(builder, "vendor", vendor);
+            jsb_add_kv_string(builder, "architecture", arch);
+
             json_builder_set_member_name(builder, "number");
-            json_builder_add_int_value(builder, info->cpu_number);
-            json_builder_set_member_name(builder, "info");
-            json_builder_begin_array(builder);
-            for (i = 0; i < g_strv_length(info->cpu_info); i++) {
-                json_builder_add_string_value(builder, info->cpu_info[i]);
-            }
-            json_builder_end_array(builder);
+            json_builder_add_int_value(builder, number);
+
+            json_builder_set_member_name(builder, "threads");
+            json_builder_add_int_value(builder, threads);
+
+            json_builder_set_member_name(builder, "cores");
+            json_builder_add_int_value(builder, cores);
+
+            json_builder_set_member_name(builder, "packages");
+            json_builder_add_int_value(builder, packages);
+
+
             json_builder_end_object(builder);
         }
 
