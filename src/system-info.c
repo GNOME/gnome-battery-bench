@@ -291,7 +291,7 @@ static GPtrArray *
 gbb_pci_device_discover(GUdevClient *client, int code, int sub, int progif)
 {
     GPtrArray *devices = NULL;
-    GList *udevices;
+    GList *udevices, *l;
 
     if (client == NULL) {
         client = g_udev_client_new(NULL);
@@ -303,7 +303,7 @@ gbb_pci_device_discover(GUdevClient *client, int code, int sub, int progif)
 
     devices = g_ptr_array_new_with_free_func(g_object_unref);
 
-    for (GList *l = udevices; l; l = l->next) {
+    for (l = udevices; l; l = l->next) {
         GUdevDevice *udev_device = l->data;
         GbbPciDevice *dev;
         GbbPciClass cid;
