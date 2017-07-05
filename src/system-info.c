@@ -1404,6 +1404,9 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
             jsb_add_kv_string(builder, "date", info->gnome_date);
             json_builder_end_object(builder);
         }
+
+        jsb_add_kv_string(builder, "battery-bench", PACKAGE_VERSION);
+
         json_builder_end_object(builder); /* software */
     }
     json_builder_end_object(builder);
