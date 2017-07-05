@@ -1,5 +1,5 @@
 AC_PREREQ(2.63)
-AC_INIT([gnome-battery-bench],[3.15.4],
+AC_INIT([gnome-battery-bench],[3.25.1],
 	[https://bugzilla.gnome.org/enter_bug.cgi?product=gnome-hwtest&component=simulator],
 	[gnome-battery-bench],
 	[https://wiki.gnome.org/Projects/BatteryLife])
