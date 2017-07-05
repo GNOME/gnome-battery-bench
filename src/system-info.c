@@ -1510,6 +1510,13 @@ gbb_system_info_to_json (const GbbSystemInfo *info, JsonBuilder *builder)
     int i;
 
     json_builder_begin_object(builder);
+    json_builder_set_member_name(builder, "format-version");
+    json_builder_begin_array(builder);
+    json_builder_add_int_value(builder, 1);
+    json_builder_add_int_value(builder, 0);
+    json_builder_add_int_value(builder, 0);
+    json_builder_end_array(builder);
+
     json_builder_set_member_name(builder, "hardware");
     {
         json_builder_begin_object(builder);
