@@ -261,21 +261,34 @@ info(int argc, char **argv)
 }
 static GbbPowerState *start_state;
 
+static gboolean monitor_timestamp;
+
+static GOptionEntry monitor_options[] =
+{
+    { "timestamp", 't', 0, G_OPTION_ARG_NONE, &monitor_timestamp, "Show timestamp" },
+    { NULL }
+};
+
 static void
 on_power_monitor_changed(GbbPowerMonitor *monitor,
                          GbbTestRunner   *runner)
 {
     const GbbPowerState *state = gbb_power_monitor_get_state(monitor);
     char time_str[256] = { 0 };
-    time_t now;
+    if(monitor_timestamp)
+    {
+        time_t now;
 
-    time (&now);
-    strftime (time_str, sizeof (time_str), "%H:%M:%S ", localtime (&now));
+        time (&now);
+        strftime (time_str, sizeof (time_str), "%H:%M:%S ", localtime (&now));
 
-    g_print("%s", time_str);
+        g_print("%s", time_str);
+    }
     g_print("AC: %s\n", state->online ? "online" : "offline");
 
-    g_print("%s", time_str);
+    if(monitor_timestamp)
+        g_print("%s", time_str);
+
     g_print("Energy: %.2f WH (%.2f%%)\n", state->energy_now, gbb_power_state_get_percent(state));
 
     if (runner != NULL) {
@@ -298,24 +311,28 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
     GbbPowerStatistics *statistics = gbb_power_statistics_compute(start_state, state);
 
     if (statistics->power >= 0) {
-        g_print("%s", time_str);
+        if(monitor_timestamp)
+            g_print("%s", time_str);
         g_print("Average power: %.2f W\n", statistics->power);
     }
     if (statistics->current >= 0) {
-        g_print("%s", time_str);
+        if(monitor_timestamp)
+            g_print("%s", time_str);
         g_print("Average current: %.2f A\n", statistics->current);
     }
     if (statistics->battery_life >= 0) {
         int h, m, s;
         break_time(statistics->battery_life, &h, &m, &s);
-        g_print("%s", time_str);
+        if(monitor_timestamp)
+            g_print("%s", time_str);
         g_print("Predicted battery life: %.0fs (%d:%02d:%02d)\n",
                 statistics->battery_life, h, m, s);
     }
     if (statistics->battery_life_design >= 0) {
         int h, m, s;
         break_time(statistics->battery_life_design, &h, &m, &s);
-        g_print("%s", time_str);
+        if(monitor_timestamp)
+            g_print("%s", time_str);
         g_print("Predicted battery life (design): %.0fs (%d:%02d:%02d)\n",
                 statistics->battery_life_design, h, m, s);
     }
@@ -324,23 +341,21 @@ on_power_monitor_changed(GbbPowerMonitor *monitor,
 
 }
 
-static GOptionEntry monitor_options[] =
-{
-    { NULL }
-};
-
 static int
 monitor(int argc, char **argv)
 {
     GbbPowerMonitor *monitor;
     GMainLoop *loop;
-    char time_str[256] = { 0 };
-    time_t now;
+    if(monitor_timestamp)
+    {
+        char time_str[256] = { 0 };
+        time_t now;
 
-    time (&now);
-    strftime (time_str, sizeof (time_str), "%Y-%m-%d %H:%M:%S ", localtime (&now));
+        time (&now);
+        strftime (time_str, sizeof (time_str), "%Y-%m-%d %H:%M:%S ", localtime (&now));
 
-    g_print ("%s", time_str);
+        g_print ("%s", time_str);
+    }
     g_print("Monitoring power events. Press Ctrl+C to cancel\n");
     monitor = gbb_power_monitor_new();
 
@@ -660,7 +675,7 @@ typedef struct {
 
 Subcommand subcommands[] = {
     { "info",         info_options, NULL, info, 0, 0},
-    { "monitor",      monitor_options, NULL, monitor, 0, 0 },
+    { "monitor",      monitor_options, NULL, monitor, 0, 1, "TIMESTAMP" },
     { "play",         play_options, NULL, play, 1, 1, "FILENAME" },
     { "play-local",   play_options, NULL, play_local, 1, 1, "FILENAME" },
     { "record",       record_options, NULL, record, 0, 0 },
