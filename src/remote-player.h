@@ -14,6 +14,8 @@ typedef struct _GbbRemotePlayer GbbRemotePlayer;
 
 GbbRemotePlayer *gbb_remote_player_new(const char *name);
 
+GbbRemotePlayer *gbb_remote_player_create_proxy(void);
+
 GType gbb_remote_player_get_type(void);
 
 #endif /* __REMOTE_PLAYER_H__ */

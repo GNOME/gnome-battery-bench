@@ -150,6 +150,12 @@ gbb_test_runner_class_init(GbbTestRunnerClass *run_class)
                       G_TYPE_NONE, 0);
 }
 
+void
+gbb_test_runner_create_proxy(GbbTestRunner *runner)
+{
+     runner->player = GBB_EVENT_PLAYER(gbb_remote_player_create_proxy());
+}
+
 GbbTestRunner *
 gbb_test_runner_new(void)
 {

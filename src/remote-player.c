@@ -269,13 +269,13 @@ on_helper_proxy_ready_cb(GObject      *source_object,
 
 
 GbbRemotePlayer *
-gbb_remote_player_new(const char *name)
+gbb_remote_player_create_proxy(void)
 {
-    GbbRemotePlayer *player = g_object_new(GBB_TYPE_REMOTE_PLAYER, NULL);
+  GbbRemotePlayer *player = g_object_new(GBB_TYPE_REMOTE_PLAYER, NULL);
 
-    player->name = g_strdup(name);
+  player->name = g_strdup("GNOME Battery Bench");
 
-    g_dbus_proxy_new_for_bus(G_BUS_TYPE_SYSTEM,
+  g_dbus_proxy_new_for_bus(G_BUS_TYPE_SYSTEM,
                              G_DBUS_PROXY_FLAGS_NONE,
                              gbb_get_introspection_interface(GBB_DBUS_INTERFACE_HELPER),
                              GBB_DBUS_NAME_HELPER,
@@ -284,6 +284,16 @@ gbb_remote_player_new(const char *name)
                              player->cancellable,
                              on_helper_proxy_ready_cb,
                              player);
+
+  return player;
+}
+
+GbbRemotePlayer *
+gbb_remote_player_new(const char *name)
+{
+    GbbRemotePlayer *player = g_object_new(GBB_TYPE_REMOTE_PLAYER, NULL);
+
+    player->name = g_strdup(name);
 
     return player;
 }

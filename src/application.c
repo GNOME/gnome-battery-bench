@@ -490,6 +490,8 @@ application_start(GbbApplication *application)
     if (gbb_test_runner_get_phase(application->runner) != GBB_TEST_PHASE_STOPPED)
         return;
 
+    gbb_test_runner_create_proxy(application->runner);
+
     if (application->run) {
         gbb_power_graphs_set_test_run(GBB_POWER_GRAPHS(application->test_graphs), NULL);
         g_clear_object(&application->run);
