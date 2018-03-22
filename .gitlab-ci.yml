@@ -1,0 +1,11 @@
+image: fedora:26
+stages:
+  - build
+before_script :
+  - dnf install gnome-common
+build-gnome-battery-bench:
+  stage: build
+  script:
+    - ./autogen --prefix=/usr --sysconfdir=/etc
+    - make
+    - sudo make install
