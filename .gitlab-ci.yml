@@ -6,6 +6,6 @@ before_script :
 build-gnome-battery-bench:
   stage: build
   script:
-    - ./autogen --prefix=/usr --sysconfdir=/etc
+    - ./autogen.sh --prefix=/usr --sysconfdir=/etc
     - make
     - sudo make install
