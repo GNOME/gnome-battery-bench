@@ -2,7 +2,8 @@ image: fedora:26
 stages:
   - build
 before_script :
-  - dnf install -y gnome-common
+  - dnf update
+  - dnf install -y gnome-common libevdev glib-devel polkit-devel
 build-gnome-battery-bench:
   stage: build
   script:
