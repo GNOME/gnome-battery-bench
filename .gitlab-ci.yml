@@ -3,7 +3,7 @@ stages:
   - build
 before_script :
   - dnf update -y
-  - dnf install -y gnome-common libevdev glib-devel polkit-devel
+  - dnf install -y gnome-common libevdev-devel glib-devel polkit-devel
 build-gnome-battery-bench:
   stage: build
   script:
