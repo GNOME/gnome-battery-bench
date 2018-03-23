@@ -23,4 +23,11 @@
       <gnome:userid>otaylor</gnome:userid>
     </foaf:Person>
   </maintainer>
+  <maintainer>
+    <foaf:Person>
+      <foaf:name>Christian J. Kellner</foaf:name>
+      <foaf:mbox rdf:resource="mailto:gicmo@gnome.org" />
+      <gnome:userid>gicmo</gnome:userid>
+    </foaf:Person>
+  </maintainer>
 </Project>
