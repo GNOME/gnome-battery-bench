@@ -9,7 +9,7 @@ SYNOPSIS
 --------
 [verse]
 'gbb info [--json]'
-'gbb monitor'
+'gbb monitor [-t]'
 'gbb play <filename>'
 'gbb play-local <filename>'
 'gbb record' [-o | --output <output file]
@@ -44,11 +44,12 @@ readable JSON format; here unknown components will be omitted instead of reporte
 monitor
 ~~~~~~~
 
-'gbb monitor'
+'gbb monitor' [-t | --timestamp]
 
 Monitors the current battery usage and and prints statistics to standard out. This is
 the same as 'gbb test --verbose' without actually running a test, and is mostly a tool
 for debugging the GNOME Battery Bench application code.
+If -t is specified, shows long timestamp with monitor output, otherwise shows monotonic time.
 
 play
 ~~~~
