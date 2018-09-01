@@ -927,9 +927,10 @@ gbb_application_inhibitor_lock_release(GbbApplication *application)
 static gboolean
 gbb_application_inhibitor_lock_take(GbbApplication *application)
 {
-    GVariant *out, *input;
-    GUnixFDList *fds;
-    GError *error = NULL;
+    g_autoptr(GVariant) out = NULL;
+    g_autoptr(GUnixFDList) fds = NULL;
+    g_autoptr(GError) error = NULL;
+    GVariant *input;
 
     if (application->logind == NULL) {
         return FALSE;
@@ -961,12 +962,10 @@ gbb_application_inhibitor_lock_take(GbbApplication *application)
 
     if (g_unix_fd_list_get_length (fds) != 1) {
         g_warning ("Unexpected values returned by logind's 'Inhibit'");
-        g_variant_unref (out);
         return FALSE;
     }
 
     application->inhibitor_fd = g_unix_fd_list_get (fds, 0, NULL);
-    g_variant_unref (out);
 
     g_debug ("Acquired inhibitor lock (%i)", application->inhibitor_fd);
 
